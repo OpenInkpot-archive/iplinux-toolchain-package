@@ -1,0 +1,219 @@
+#!/bin/sh
+
+# configs use this variable, so to make sure..
+if [ -z "$GCC_VERSION" ]; then
+	GCC_VERSION=4.1
+fi
+
+if [ -f /etc/slind-utils/pkglists.conf ]; then
+	source /etc/toolchain-package/config
+	source /etc/toolchain-package/pkglists.conf
+else
+	echo "Cannot find configuration file"
+	exit 1
+fi
+
+if [ -z "$1" ]; then
+	echo "Please specify the target architecture. Thank you."
+	exit 1
+fi
+
+TARGET="$1"
+MYARCH=`dpkg --print-architecture`
+SRC_DIR=/usr/src
+BINUTILS_DIR=$SRC_DIR/binutils-source
+LKH_DIR=$SRC_DIR/linux-kernel-headers-source
+UCLIBC_DIR=$SRC_DIR/libuclibc-source
+GCC_DIR=$SRC_DIR/gcc-$GCC_VERSION
+eval `dpkg-architecture -a$TARGET -s`
+
+# banner
+echo "Building cross toolchain packages"
+echo "---------------------------------"
+echo "Host architecture: $MYARCH"
+echo "Target cpu: $DEB_HOST_GNU_CPU"
+echo "Target os: $DEB_HOST_GNU_SYSTEM"
+
+case "$DEB_HOST_ARCH_OS" in
+	uclibc)
+		LIBC_TARGET=uclibc
+		echo "### Compiling for $LIBC_TARGET target"
+		;;
+	linux)
+		LIBC_TARGET=
+		echo "### Compiling for glibc target"
+		;;
+	*)
+		echo "Unexpected host os"
+		exit 1
+		;;
+esac
+
+# clobber dpkg-architecture environment
+_env() {
+	unset DEB_HOST_ARCH
+	unset DEB_HOST_ARCH_OS
+	unset DEB_HOST_ARCH_CPU
+	unset DEB_HOST_GNU_CPU
+	unset DEB_HOST_GNU_SYSTEM
+	unset DEB_HOST_GNU_TYPE
+}
+
+_get_version() {
+	local _dir="$1"
+	cd "$_dir"; dpkg-parsechangelog|awk '/Version:/ {print $2}'
+}
+
+_checkerr() {
+	local _err="$?"
+	local _what="$1"
+	local _pkg="$2"
+
+	if [ $_err -ne 0 ]; then
+		echo "Something wicked happened when $_what $_pkg, exiting."
+		exit 1
+	fi
+}
+
+_crossinst() {
+	while [ -n "$1" ]; do
+		local _pkgfile="$1"
+		( cd "$SRC_DIR"; dpkg-cross -a${DEB_HOST_ARCH} -b "$_pkgfile" )
+		( cd "$SRC_DIR"; dpkg-cross -a${DEB_HOST_ARCH} -i "$_pkgfile" )
+		shift
+	done
+}
+
+############
+# binutils #
+############
+build_binutils() {
+	pushd "$BINUTILS_DIR"
+	_ARCH=$DEB_HOST_ARCH
+	( _env; env TARGET="$_ARCH" \
+	  debian/rules binary-cross clean-cross )
+	_checkerr building binutils
+	popd
+}
+install_binutils() {
+	if [ -n "$LIBC_TARGET" ]; then
+		LIBC_TARGET="-$LIBC_TARGET"
+	else
+		LIBC_TARGET="-gnu"
+	fi
+	
+	VERSION=`_get_version "$BINUTILS_DIR"`
+	PKGNAME="binutils-${DEB_HOST_GNU_CPU}-linux${LIBC_TARGET}_${VERSION}_${DEB_BUILD_ARCH}.deb"
+	dpkg -i "$SRC_DIR/$PKGNAME"
+	_checkerr installing binutils
+}
+
+########################
+# linux-kernel-headers #
+########################
+build_lkh() {
+	pushd "$LKH_DIR"
+	dpkg-buildpackage -uc -us -a${DEB_HOST_ARCH} -d
+	_checkerr building linux-kernel-headers
+	debian/rules clean
+	popd
+}
+
+install_lkh() {
+	VERSION=`_get_version "$LKH_DIR"`
+	PKGNAME="linux-kernel-headers_${VERSION}_${DEB_HOST_ARCH}.deb"
+	_crossinst $PKGNAME
+	_checkerr installing linux-kernel-headers
+}
+
+##########
+# uclibc #
+##########
+build_uclibc_bs() {
+	pushd "$UCLIBC_DIR"
+	( env DEB_CROSS_BOOTSTRAP=yes \
+		dpkg-buildpackage -uc -us -a${DEB_HOST_ARCH} -b )
+	_checkerr building "bootstrap uclibc"
+	debian/rules clean
+	popd
+}
+
+install_uclibc_bs() {
+	VERSION=`_get_version "$UCLIBC_DIR"`
+	PKGNAME="libuclibc-dev-headers_${VERSION}_${DEB_HOST_ARCH}.deb"
+	_crossinst $PKGNAME
+	_checkerr installing "bootstrap uclibc"
+}
+
+build_uclibc() {
+	dpkg -P libuclibc-dev-headers-${DEB_HOST_ARCH}-cross
+	pushd "$UCLIBC_DIR"
+	( dpkg-buildpackage -uc -us -a${DEB_HOST_ARCH} -b )
+	_checkerr building uclibc
+	debian/rules clean
+	popd
+}
+
+install_uclibc() {
+	VERSION=`_get_version "$UCLIBC_DIR"`
+	PKGPREFIX="${VERSION}_${DEB_HOST_ARCH}.deb"
+	PKGNAMES="libuclibc0_${PKGPREFIX} libuclibc-dev_${PKGPREFIX}"
+	_crossinst $PKGNAMES
+	_checkerr installing uclibc
+}
+
+#######
+# gcc #
+#######
+build_gcc_bs() {
+	pushd "$GCC_DIR"
+	ARCH=${DEB_HOST_ARCH}
+	( _env; env GCC_TARGET=${ARCH} DEB_CROSS_BOOTSTRAP=yes \
+		dpkg-buildpackage -uc -us -rfakeroot -b -d )
+	_checkerr building "bootstrap gcc"
+	debian/rules clean
+	popd
+}
+
+install_gcc_bs() {
+	VERSION=`_get_version "$GCC_DIR"`
+	PKGPREFIX1="${GCC_VERSION}-${DEB_HOST_GNU_TYPE}_${VERSION}_${DEB_BUILD_ARCH}.deb"
+	PKGPREFIX2="${DEB_HOST_ARCH}-cross_${VERSION}_all.deb"
+	PKGNAMES="gcc-${PKGPREFIX1} cpp-${PKGPREFIX1} libgcc1-${PKGPREFIX2}"
+	( cd "$SRC_DIR"; dpkg -i $PKGNAMES )
+	_checkerr installing "bootstrap gcc"
+}
+
+build_gcc() {
+	dpkg -P ${PKGLIST_GCC}
+	pushd "$GCC_DIR"
+	ARCH=${DEB_HOST_ARCH}
+	( _env; env GCC_TARGET=${ARCH} DEB_TARGET_LIBCXX=yes \
+		dpkg-buildpackage -uc -us -rfakeroot -d )
+	_checkerr building gcc
+	debian/rules clean
+	popd
+}
+
+install_gcc() {
+	VERSION=`_get_version "$GCC_DIR"`
+	PKGPREFIX1="${GCC_VERSION}-${DEB_HOST_GNU_TYPE}_${VERSION}_${DEB_BUILD_ARCH}.deb"
+	PKGPREFIX2="${DEB_HOST_ARCH}-cross_${VERSION}_all.deb"
+	PKGNAMES="gcc-${PKGPREFIX1} cpp-${PKGPREFIX1} g++-${PKGPREFIX1} libgcc1-${PKGPREFIX2} libstdc++6-${PKGPREFIX2} libstdc++6-dev-${PKGPREFIX2}"
+	( cd "$SRC_DIR"; dpkg -i $PKGNAMES )
+	_checkerr installing gcc
+}
+
+build_binutils
+install_binutils
+build_lkh
+install_lkh
+build_uclibc_bs
+install_uclibc_bs
+build_gcc_bs
+install_gcc_bs
+build_uclibc
+install_uclibc
+build_gcc
+install_gcc
+

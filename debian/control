@@ -1,0 +1,14 @@
+Source: toolchain-package
+Section: devel
+Maintainer: Alexander Shishkin <alexander.shishkin@siemens.com>
+Build-Depends: debhelper (>> 2.0.0)
+Standards-Version: 3.6.2
+
+Package: toolchain-package
+Priority: optional
+Architecture: all
+Depends: dpkg-cross, dpkg-dev, binutils-source (>= 2.17-2.slind0), linux-kernel-headers-source (>= 2.6.12.0-1.slind1), libuclibc-source (>= 0.9.28svn20060414-1slind0), gcc-4.1-source (>= 4.1.0-slind0)
+Description: Cross-compilation toolchain builder
+ This package contains a tool that builds cross-compilation
+ toolchains for several architectures (those supported in slind).
+
