@@ -5,7 +5,7 @@ if [ -z "$GCC_VERSION" ]; then
 	GCC_VERSION=4.1
 fi
 
-if [ -f /etc/slind-utils/pkglists.conf ]; then
+if [ -f /etc/toolchain-package/pkglists.conf ]; then
 	source /etc/toolchain-package/config
 	source /etc/toolchain-package/pkglists.conf
 else
