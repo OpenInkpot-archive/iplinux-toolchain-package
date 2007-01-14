@@ -189,7 +189,6 @@ install_glibc_bs() {
 }
 
 build_glibc_bs2() {
-	dpkg -P libc6-dev-headers-${DEB_HOST_ARCH}-cross
 	pushd "$GLIBC_DIR"
 	( env DEB_CROSS_BOOTSTRAP=second \
 		dpkg-buildpackage -uc -us -a${DEB_HOST_ARCH} -b )
@@ -199,6 +198,7 @@ build_glibc_bs2() {
 }
 
 install_glibc_bs2() {
+	dpkg -P libc6-dev-headers-${DEB_HOST_ARCH}-cross
 	VERSION=`_get_version "$GLIBC_DIR"`
 	PKGPREFIX="${VERSION}_${DEB_HOST_ARCH}.deb"
 	PKGNAMES="libc6_${PKGPREFIX} libc6-dev_${PKGPREFIX}"
