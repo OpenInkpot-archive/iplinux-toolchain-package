@@ -24,6 +24,7 @@ SRC_DIR=/usr/src
 BINUTILS_DIR=$SRC_DIR/binutils-source
 LKH_DIR=$SRC_DIR/linux-kernel-headers-source
 UCLIBC_DIR=$SRC_DIR/libuclibc-source
+GLIBC_DIR=$SRC_DIR/glibc-2.4-source
 GCC_DIR=$SRC_DIR/gcc-$GCC_VERSION
 eval `dpkg-architecture -a$TARGET -s`
 
@@ -51,6 +52,12 @@ esac
 
 # clobber dpkg-architecture environment
 _env() {
+	unset DEB_BUILD_ARCH
+	unset DEB_BUILD_ARCH_OS
+	unset DEB_BUILD_ARCH_CPU
+	unset DEB_BUILD_GNU_CPU
+	unset DEB_BUILD_GNU_SYSTEM
+	unset DEB_BUILD_GNU_TYPE
 	unset DEB_HOST_ARCH
 	unset DEB_HOST_ARCH_OS
 	unset DEB_HOST_ARCH_CPU
@@ -162,6 +169,59 @@ install_uclibc() {
 	_checkerr installing uclibc
 }
 
+#########
+# glibc #
+#########
+build_glibc_bs() {
+	pushd "$GLIBC_DIR"
+	( env DEB_CROSS_BOOTSTRAP=yes \
+		dpkg-buildpackage -uc -us -a${DEB_HOST_ARCH} -b )
+	_checkerr building "bootstrap glibc"
+	debian/rules clean
+	popd
+}
+
+install_glibc_bs() {
+	VERSION=`_get_version "$GLIBC_DIR"`
+	PKGNAME="libc6-dev-headers_${VERSION}_${DEB_HOST_ARCH}.deb"
+	_crossinst $PKGNAME
+	_checkerr installing "bootstrap glibc"
+}
+
+build_glibc_bs2() {
+	dpkg -P libc6-dev-headers-${DEB_HOST_ARCH}-cross
+	pushd "$GLIBC_DIR"
+	( env DEB_CROSS_BOOTSTRAP=second \
+		dpkg-buildpackage -uc -us -a${DEB_HOST_ARCH} -b )
+	_checkerr building glibc
+	debian/rules clean
+	popd
+}
+
+install_glibc_bs2() {
+	VERSION=`_get_version "$GLIBC_DIR"`
+	PKGPREFIX="${VERSION}_${DEB_HOST_ARCH}.deb"
+	PKGNAMES="libc6_${PKGPREFIX} libc6-dev_${PKGPREFIX}"
+	_crossinst $PKGNAMES
+	_checkerr installing glibc
+}
+
+build_glibc() {
+	pushd "$GLIBC_DIR"
+	( dpkg-buildpackage -uc -us -a${DEB_HOST_ARCH} -b )
+	_checkerr building glibc
+	debian/rules clean
+	popd
+}
+
+install_glibc() {
+	VERSION=`_get_version "$GLIBC_DIR"`
+	PKGPREFIX="${VERSION}_${DEB_HOST_ARCH}.deb"
+	PKGNAMES="libc6_${PKGPREFIX} libc6-dev_${PKGPREFIX}"
+	_crossinst $PKGNAMES
+	_checkerr installing glibc
+}
+
 #######
 # gcc #
 #######
@@ -208,12 +268,31 @@ build_binutils
 install_binutils
 build_lkh
 install_lkh
-build_uclibc_bs
-install_uclibc_bs
+
+if [ "$DEB_HOST_ARCH_OS" = "uclibc" ]; then
+	build_uclibc_bs
+	install_uclibc_bs
+else
+	build_glibc_bs
+	install_glibc_bs
+fi
+
 build_gcc_bs
 install_gcc_bs
-build_uclibc
-install_uclibc
+
+if [ "$DEB_HOST_ARCH_OS" = "uclibc" ]; then
+	build_uclibc
+	install_uclibc
+else
+	build_glibc_bs2
+	install_glibc_bs2
+fi
+
 build_gcc
 install_gcc
+
+if [ "$DEB_HOST_ARCH_OS" != "uclibc" ]; then
+	build_glibc
+	install_glibc
+fi
 
