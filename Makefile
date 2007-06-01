@@ -9,10 +9,9 @@ SCRIPTDIR := $(BINDIR)
 
 SCRIPTS := mktpkg
 CONFIGS := config pkglists.conf
-all: install-stamp
+all: install
 
-install: install-stamp
-install-stamp:
+install:
 	# install directories
 	install -d $(BINDIR)
 	install -d $(CONFDIR)
@@ -24,8 +23,6 @@ install-stamp:
 	for c in $(CONFIGS); do \
 		install -m644 $$c $(CONFDIR); \
 	done
-	
-	touch $@
 
 clean:
 	rm -f install-stamp
