@@ -1,7 +1,11 @@
 #!/usr/bin/make -f
 
-pkg := toolchain-package
-dir := debian/$(pkg)
+pkg_tpkg := toolchain-package
+pkg_maint := toolchain-package-maintainer
+dir_tpkg := $(patsubst %,debian/%,$(pkg_tpkg))
+dir_maint := $(patsubst %,debian/%,$(pkg_maint))
+pkgs := $(pkg_tpkg) $(pkg_maint)
+dirs := $(dir_tpkg) $(dir_maint)
 
 configure:
 	dh_testdir
@@ -10,26 +14,30 @@ clean:
 	dh_testdir
 	$(MAKE) clean
 
-	rm -f debian/substvars build-stamp debian/files
-	rm -rf $(dir)
+	rm -f debian/substvars build-stamp install-stamp debian/files
+	rm -rf $(dirs)
 
 build: build-stamp configure
 build-stamp:
 	#$(MAKE)
 	touch $@
 
-install: build
+install: install-stamp build
+install-stamp:
 	dh_testdir
 	dh_testroot
 
 	dh_clean -k
 	dh_installdirs
+	touch $@
 
 binary-arch: install
 	dh_testdir
 	dh_testroot
 
-	$(MAKE) install DESTDIR=$(dir)
+	for d in $(dirs); do \
+		$(MAKE) install DESTDIR=$$d; \
+	done
 	dh_installchangelogs
 	
 	dh_installdeb

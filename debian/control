@@ -7,8 +7,20 @@ Standards-Version: 3.6.2
 Package: toolchain-package
 Priority: optional
 Architecture: all
+Replaces: toolchain-package-maintainer
 Depends: dpkg-cross, dpkg-dev, binutils-source (>= 2.17-2.slind0), linux-kernel-headers-source (>= 2.6.12.0-1.slind1), libuclibc-source (>= 0.9.28svn20060414-1slind0), gcc-4.1-source (>= 4.1.0-slind0), dpatch, fakeroot, cdbs, quilt, debhelper, gawk, flex, realpath, automake1.7, autoconf2.13, texi2html, texinfo, lsb-release
 Description: Cross-compilation toolchain builder
  This package contains a tool that builds cross-compilation
  toolchains for several architectures (those supported in slind).
+
+Package: toolchain-package-maintainer
+Priority: optional
+Architecture: all
+Replaces: toolchain-package
+Depends: dpkg-cross, dpkg-dev, dpatch, fakeroot, cdbs, quilt, debhelper, gawk, flex, realpath, automake1.7, autoconf2.13, texi2html, texinfo, lsb-release
+Description: Cross-compilation toolchain builder
+ This package contains a tool that builds cross-compilation
+ toolchains for several architectures (those supported in slind).
+ Tools are built from source packages instead of binary packages with
+ sources.
 
