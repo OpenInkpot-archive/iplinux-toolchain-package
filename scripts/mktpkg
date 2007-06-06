@@ -1,10 +1,20 @@
 #!/bin/sh
+#
+# This mighty script is here to do the hard work of building cross-toolchains
+# for SLIND. It is capable of operating in two modes:
+#  1) building toolchain components from binary-packaged sources
+#     (like, gcc-4.1-source which installs stuff to /usr/src/XXXX);
+#     this is the default
+#  2) building from source packages; this happens if you have
+#     slind-maintainer-core package installed
 
 # configs use this variable, so to make sure..
+# Note that this is not the version, but part of package's name.
 if [ -z "$GCC_VERSION" ]; then
 	GCC_VERSION=4.1
 fi
 
+# our private stuff
 if [ -f /etc/toolchain-package/pkglists.conf ]; then
 	source /etc/toolchain-package/config
 	source /etc/toolchain-package/pkglists.conf
@@ -18,15 +28,92 @@ if [ -z "$1" ]; then
 	exit 1
 fi
 
-TARGET="$1"
-MYARCH=`dpkg --print-architecture`
-SRC_DIR=/usr/src
+# presence of slindjob-config effectively indicates that we
+# should build things from _source_ packages, not the binary-packaged
+# sources; this is not entirely correct, but will do for now
+SLINDJOB_CONFIG=/etc/slindjob-config
+POOLCARE_LIB=/usr/lib/slind-maintainer-core/libpoolcare.sh
+if [ ! -f "$SLINDJOB_CONFIG" ]; then
+	SRC_DIR=/usr/src
+else
+	. $SLINDJOB_CONFIG
+
+	# these are needed for libpoolcare.sh
+	DEVSUITE=clydesdale
+	REPODIR="$POOL_DIR"
+	. $POOLCARE_LIB
+	[ -n "$SRC_DIR" ] || SRC_DIR=/tmp/tpkg
+fi
+
+# SIGINT handler; removes cruft
+# if $NO_CLEAN is set in the environment, this function does nothing
+cleanup() {
+	if [ -z "$NO_CLEAN" ]; then
+		if [ -n "$POOL_DIR" -a "$SRC_DIR" != "/usr/src" ]; then
+			rm -rf "$SRC_DIR"
+		fi
+	fi
+}
+
+# Paths to sources; this is relevant for SRC_DIR=/usr/src case
 BINUTILS_DIR=$SRC_DIR/binutils-source
 LKH_DIR=$SRC_DIR/linux-kernel-headers-source
 UCLIBC_DIR=$SRC_DIR/libuclibc-source
-GLIBC_DIR=$SRC_DIR/glibc-2.4-source
+GLIBC_DIR=$SRC_DIR/glibc-source
 GCC_DIR=$SRC_DIR/gcc-$GCC_VERSION
+
+# XXX vvv move this
+SQLCMD="sqlite3 $POOL_DIR/indices/overrides.db"
+get_pkg_version() {
+	local _pkgname="$1"
+	
+	local _version=`$SQLCMD "select version from overrides
+		  where pkgname='$_pkgname' order by version desc limit 1"`
+	if [ -z "$_version" ]; then
+		echo "Can't find $_pkgname version in overrides.db" >&2
+		exit 1
+	fi
+
+	echo "$_version"
+}
+# XXX ^^^ move this
+
+# get the source package
+# $1 -- package name
+# This fn will look up package's version in overrides db and
+# download its sources to $SRC_DIR. Only used in SRC_DIR!=/usr/src case.
+get_srcpkg() {
+	local _pkgname="$1"
+
+	local _version="`get_pkg_version $_pkgname`"
+	( cd $SRC_DIR; apt-get source $_pkgname=$_version >&2 )
+
+	local _uver="`echo $_version | sed -e 's,-.*,,'`"
+
+	echo "$SRC_DIR/$_pkgname-$_uver"
+}
+
+# If we work in the (2) mode, clean up $SRC_DIR and populate
+# it with sources.
+if [ -f "$SLINDJOB_CONFIG" ]; then
+	if [ -d "$SRC_DIR" ]; then
+		rm -rf "$SRC_DIR"
+	fi
+	mkdir -p "$SRC_DIR"
+
+	BINUTILS_DIR=`get_srcpkg binutils`
+	LKH_DIR=`get_srcpkg linux-kernel-headers`
+	UCLIBC_DIR=`get_srcpkg uclibc`
+	GLIBC_DIR=`get_srcpkg glibc`
+	GCC_DIR=`get_srcpkg gcc-$GCC_VERSION`
+fi
+
+TARGET="$1"
+MYARCH=`dpkg --print-architecture`
 eval `dpkg-architecture -a$TARGET -s`
+
+# Set up ^C handler
+trap cleanup INT
 
 # banner
 echo "Building cross toolchain packages"
@@ -66,11 +153,18 @@ _env() {
 	unset DEB_HOST_GNU_TYPE
 }
 
+# get source package's version from its debian/changelog
+# $1 -- path to unpacked sources
 _get_version() {
 	local _dir="$1"
 	cd "$_dir"; dpkg-parsechangelog|awk '/Version:/ {print $2}'
 }
 
+# check for error condition, scream and die if needed
+# This one should be called right after the command that
+# can potentially trigger the error condition.
+# $1 -- string describing the action (e.g., "installing")
+# $2 -- name of the package, on which this action was performed
 _checkerr() {
 	local _err="$?"
 	local _what="$1"
@@ -82,6 +176,9 @@ _checkerr() {
 	fi
 }
 
+# call dpkg-cross to convert a target package into a -cross package
+# and perform cross-installation
+# Takes paths to binary packages to be processed as arguments.
 _crossinst() {
 	while [ -n "$1" ]; do
 		local _pkgfile="$1"
@@ -90,6 +187,12 @@ _crossinst() {
 		shift
 	done
 }
+
+# ------------------------------------------------------- #
+# tools                                                   #
+# ------------------------------------------------------- #
+# These functions are responsible for building of each component
+# in the toolchain. Names and code should be pretty straightforward.
 
 ############
 # binutils #
@@ -102,6 +205,7 @@ build_binutils() {
 	_checkerr building binutils
 	popd
 }
+
 install_binutils() {
 	if [ -n "$LIBC_TARGET" ]; then
 		LIBC_TARGET="-$LIBC_TARGET"
@@ -264,6 +368,57 @@ install_gcc() {
 	_checkerr installing gcc
 }
 
+make_meta_tpkg() {
+	# render package's "Depends:" header
+	BINUTILS_VERSION=`_get_version "$BINUTILS_DIR"`
+	BINUTILS_PKGDEP="binutils-${DEB_HOST_GNU_TYPE} (= ${BINUTILS_VERSION})"
+
+	LKH_VERSION=`_get_version "$LKH_DIR"`
+	LKH_PKGDEP="linux-kernel-headers-${DEB_HOST_ARCH}-cross (= ${LKH_VERSION})"
+
+	UCLIBC_VERSION=`_get_version "$UCLIBC_DIR"`
+	UCLIBC_PKGDEP="libuclibc0-${DEB_HOST_ARCH}-cross (= ${UCLIBC_VERSION}), libuclibc-dev-${DEB_HOST_ARCH}-cross (= ${UCLIBC_VERSION})"
+
+	GLIBC_VERSION=`_get_version "$GLIBC_DIR"`
+	GLIBC_PKGDEP="libc6-${DEB_HOST_ARCH}-cross (= ${GLIBC_VERSION}), libc6-dev-${DEB_HOST_ARCH}-cross (= ${GLIBC_VERSION})"
+
+	GCCPKG_VERSION=`_get_version "$GCC_DIR"`
+	GCC_PKGDEP="gcc-${GCC_VERSION}-${DEB_HOST_GNU_TYPE} (= ${GCCPKG_VERSION}), cpp-${GCC_VERSION}-${DEB_HOST_GNU_TYPE} (= ${GCCPKG_VERSION}), g++-${GCC_VERSION}-${DEB_HOST_GNU_TYPE} (= ${GCCPKG_VERSION}), libgcc1-${DEB_HOST_ARCH}-cross (= ${GCCPKG_VERSION}), libstdc++6-${DEB_HOST_ARCH}-cross (= ${GCCPKG_VERSION}), libstdc++6-dev-${DEB_HOST_ARCH}-cross (= ${GCCPKG_VERSION})"
+
+	DEPENDS="$BINUTILS_PKGDEP, $LKH_PKGDEP, $GCC_PKGDEP, "
+	if [ "$DEB_HOST_ARCH_OS" = "uclibc" ]; then
+		DEPENDS="$DEPENDS $UCLIBC_PKGDEP"
+	else
+		DEPENDS="$DEPENDS $GLIBC_PKGDEP"
+	fi
+
+	if [ -z "$TPKG_MAINTAINER" ]; then
+		TPKG_MAINTAINER="Alexander Shishkin <virtuoso@slind.org>"
+	fi
+
+	TPKG_PKGNAME="${DEB_HOST_ARCH}-cross-toolchain"
+	TPKG_PKGDIR=$SRC_DIR/$TPKG_PKGNAME
+	mkdir -p $TPKG_PKGDIR/DEBIAN
+
+	cat > $TPKG_PKGDIR/DEBIAN/control <<EOF
+Package: $TPKG_PKGNAME
+Version: 1.0
+Section: host-tools
+Priority: optional
+Architecture: $DEB_BUILD_ARCH
+Depends: $DEPENDS
+Provides: cross-toolchain, slind-cross-toolchain
+Installed-size: 0
+Maintainer: $TPKG_MAINTAINER
+Description: cross-compilation toolchain for $DEB_HOST_ARCH
+ This is a metapackage that will get you a complete toolchain
+ for cross-compilation into $DEB_HOST_ARCH target.
+EOF
+
+	dpkg-deb -b $TPKG_PKGDIR
+	dpkg-name $SRC_DIR/${TPKG_PKGNAME}.deb
+}
+
 build_binutils
 install_binutils
 build_lkh
@@ -295,4 +450,6 @@ if [ "$DEB_HOST_ARCH_OS" != "uclibc" ]; then
 	build_glibc
 	install_glibc
 fi
+
+make_meta_tpkg
 
