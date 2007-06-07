@@ -96,9 +96,7 @@ get_srcpkg() {
 # If we work in the (2) mode, clean up $SRC_DIR and populate
 # it with sources.
 if [ -f "$SLINDJOB_CONFIG" ]; then
-	if [ -d "$SRC_DIR" ]; then
-		rm -rf "$SRC_DIR"
-	fi
+	cleanup
 	mkdir -p "$SRC_DIR"
 
 	BINUTILS_DIR=`get_srcpkg binutils`
