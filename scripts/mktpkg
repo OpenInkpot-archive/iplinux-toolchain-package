@@ -380,8 +380,8 @@ make_meta_tpkg() {
 	GLIBC_VERSION=`_get_version "$GLIBC_DIR"`
 	GLIBC_PKGDEP="libc6-${DEB_HOST_ARCH}-cross (= ${GLIBC_VERSION}), libc6-dev-${DEB_HOST_ARCH}-cross (= ${GLIBC_VERSION})"
 
-	GCCPKG_VERSION=1:`_get_version "$GCC_DIR"`
-	GCC_PKGDEP="gcc-${GCC_VERSION}-${DEB_HOST_GNU_TYPE} (= ${GCCPKG_VERSION}), cpp-${GCC_VERSION}-${DEB_HOST_GNU_TYPE} (= ${GCCPKG_VERSION}), g++-${GCC_VERSION}-${DEB_HOST_GNU_TYPE} (= ${GCCPKG_VERSION}), libgcc1-${DEB_HOST_ARCH}-cross (= ${GCCPKG_VERSION}), libstdc++6-${DEB_HOST_ARCH}-cross (= ${GCCPKG_VERSION}), libstdc++6-dev-${DEB_HOST_ARCH}-cross (= ${GCCPKG_VERSION})"
+	GCCPKG_VERSION=`_get_version "$GCC_DIR"`
+	GCC_PKGDEP="gcc-${GCC_VERSION}-${DEB_HOST_GNU_TYPE} (= ${GCCPKG_VERSION}), cpp-${GCC_VERSION}-${DEB_HOST_GNU_TYPE} (= ${GCCPKG_VERSION}), g++-${GCC_VERSION}-${DEB_HOST_GNU_TYPE} (= ${GCCPKG_VERSION}), libgcc1-${DEB_HOST_ARCH}-cross (= 1:${GCCPKG_VERSION}), libstdc++6-${DEB_HOST_ARCH}-cross (= ${GCCPKG_VERSION}), libstdc++6-dev-${DEB_HOST_ARCH}-cross (= ${GCCPKG_VERSION})"
 
 	DEPENDS="$BINUTILS_PKGDEP, $LKH_PKGDEP, $GCC_PKGDEP, "
 	if [ "$DEB_HOST_ARCH_OS" = "uclibc" ]; then
