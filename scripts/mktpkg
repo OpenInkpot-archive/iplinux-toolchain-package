@@ -201,7 +201,7 @@ build_binutils() {
 	pushd "$BINUTILS_DIR"
 	_ARCH=$DEB_HOST_ARCH
 	( _env; env TARGET="$_ARCH" \
-	  debian/rules binary-cross clean-cross )
+	  debian/rules binary-source binary-cross clean-cross )
 	_checkerr building binutils
 	popd
 }
