@@ -62,22 +62,6 @@ UCLIBC_DIR=$SRC_DIR/libuclibc-source
 GLIBC_DIR=$SRC_DIR/glibc-source
 GCC_DIR=$SRC_DIR/gcc-$GCC_VERSION
 
-# XXX vvv move this
-SQLCMD="sqlite3 $POOL_DIR/indices/overrides.db"
-get_pkg_version() {
-	local _pkgname="$1"
-	
-	local _version=`$SQLCMD "select version from overrides
-		  where pkgname='$_pkgname' order by version desc limit 1"`
-	if [ -z "$_version" ]; then
-		echo "Can't find $_pkgname version in overrides.db" >&2
-		exit 1
-	fi
-
-	echo "$_version"
-}
-# XXX ^^^ move this
-
 # get the source package
 # $1 -- package name
 # This fn will look up package's version in overrides db and
@@ -85,7 +69,7 @@ get_pkg_version() {
 get_srcpkg() {
 	local _pkgname="$1"
 
-	local _version="`get_pkg_version $_pkgname`"
+	local _version="`override_get_pkg_version $_pkgname`"
 	( cd $SRC_DIR; apt-get source $_pkgname=$_version >&2 )
 
 	local _uver="`echo $_version | sed -e 's,-.*,,'`"
