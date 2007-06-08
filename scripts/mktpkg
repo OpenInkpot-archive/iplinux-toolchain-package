@@ -35,7 +35,7 @@ fi
 # should build things from _source_ packages, not the binary-packaged
 # sources; this is not entirely correct, but will do for now
 SLINDJOB_CONFIG=/etc/slindjob-config
-POOLCARE_LIB=/usr/lib/slind-maintainer-core/libpoolcare.sh
+POOLCARE_LIB=/usr/lib/slind-core/libpoolcare.sh
 if [ ! -f "$SLINDJOB_CONFIG" ]; then
 	SRC_DIR=/usr/src
 else
