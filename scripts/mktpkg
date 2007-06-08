@@ -24,7 +24,10 @@ else
 fi
 
 if [ -z "$1" ]; then
-	echo "Please specify the target architecture. Thank you."
+	echo
+	echo "Usage: $0 <target_arch>"
+	echo
+	echo "<target_arch>	must be a Debian architecture string."
 	exit 1
 fi
 
@@ -61,6 +64,9 @@ LKH_DIR=$SRC_DIR/linux-kernel-headers-source
 UCLIBC_DIR=$SRC_DIR/libuclibc-source
 GLIBC_DIR=$SRC_DIR/glibc-source
 GCC_DIR=$SRC_DIR/gcc-$GCC_VERSION
+
+[ -n "$BUILD_ROOTCMD" ]   || BUILD_ROOTCMD=fakeroot
+[ -n "$INSTALL_ROOTCMD" ] || INSTALL_ROOTCMD=sudo
 
 # get the source package
 # $1 -- package name
@@ -110,7 +116,7 @@ case "$DEB_HOST_ARCH_OS" in
 		echo "### Compiling for $LIBC_TARGET target"
 		;;
 	linux)
-		LIBC_TARGET=
+		LIBC_TARGET=gnu
 		echo "### Compiling for glibc target"
 		;;
 	*)
@@ -165,7 +171,8 @@ _crossinst() {
 	while [ -n "$1" ]; do
 		local _pkgfile="$1"
 		( cd "$SRC_DIR"; dpkg-cross -a${DEB_HOST_ARCH} -b "$_pkgfile" )
-		( cd "$SRC_DIR"; dpkg-cross -a${DEB_HOST_ARCH} -i "$_pkgfile" )
+		( cd "$SRC_DIR"; $INSTALL_ROOTCMD dpkg-cross -a${DEB_HOST_ARCH} \
+			-i "$_pkgfile" )
 		shift
 	done
 }
@@ -183,21 +190,15 @@ build_binutils() {
 	pushd "$BINUTILS_DIR"
 	_ARCH=$DEB_HOST_ARCH
 	( _env; env TARGET="$_ARCH" \
-	  debian/rules binary-source binary-cross clean-cross )
+	  $BUILD_ROOTCMD debian/rules binary-source binary-cross clean-cross )
 	_checkerr building binutils
 	popd
 }
 
 install_binutils() {
-	if [ -n "$LIBC_TARGET" ]; then
-		LIBC_TARGET="-$LIBC_TARGET"
-	else
-		LIBC_TARGET="-gnu"
-	fi
-	
 	VERSION=`_get_version "$BINUTILS_DIR"`
-	PKGNAME="binutils-${DEB_HOST_GNU_CPU}-linux${LIBC_TARGET}_${VERSION}_${DEB_BUILD_ARCH}.deb"
-	dpkg -i "$SRC_DIR/$PKGNAME"
+	PKGNAME="binutils-${DEB_HOST_GNU_CPU}-linux-${LIBC_TARGET}_${VERSION}_${DEB_BUILD_ARCH}.deb"
+	$INSTALL_ROOTCMD dpkg -i "$SRC_DIR/$PKGNAME"
 	_checkerr installing binutils
 }
 
@@ -206,9 +207,9 @@ install_binutils() {
 ########################
 build_lkh() {
 	pushd "$LKH_DIR"
-	dpkg-buildpackage -uc -us -a${DEB_HOST_ARCH} -d
+	dpkg-buildpackage -uc -us -r$BUILD_ROOTCMD -a${DEB_HOST_ARCH} -d
 	_checkerr building linux-kernel-headers
-	debian/rules clean
+	$BUILD_ROOTCMD debian/rules clean
 	popd
 }
 
@@ -225,9 +226,10 @@ install_lkh() {
 build_uclibc_bs() {
 	pushd "$UCLIBC_DIR"
 	( env DEB_CROSS_BOOTSTRAP=yes \
-		dpkg-buildpackage -uc -us -a${DEB_HOST_ARCH} -b )
+		dpkg-buildpackage -uc -us -r$BUILD_ROOTCMD -a${DEB_HOST_ARCH} \
+		-b )
 	_checkerr building "bootstrap uclibc"
-	debian/rules clean
+	$BUILD_ROOTCMD debian/rules clean
 	popd
 }
 
@@ -239,11 +241,11 @@ install_uclibc_bs() {
 }
 
 build_uclibc() {
-	dpkg -P libuclibc-dev-headers-${DEB_HOST_ARCH}-cross
+	$INSTALL_ROOTCMD dpkg -P libuclibc-dev-headers-${DEB_HOST_ARCH}-cross
 	pushd "$UCLIBC_DIR"
-	( dpkg-buildpackage -uc -us -a${DEB_HOST_ARCH} -b )
+	( dpkg-buildpackage -uc -us -r$BUILD_ROOTCMD -a${DEB_HOST_ARCH} -b )
 	_checkerr building uclibc
-	debian/rules clean
+	$BUILD_ROOTCMD debian/rules clean
 	popd
 }
 
@@ -261,9 +263,10 @@ install_uclibc() {
 build_glibc_bs() {
 	pushd "$GLIBC_DIR"
 	( env DEB_CROSS_BOOTSTRAP=yes \
-		dpkg-buildpackage -uc -us -a${DEB_HOST_ARCH} -b )
+		dpkg-buildpackage -uc -us -r$BUILD_ROOTCMD -a${DEB_HOST_ARCH} \
+		-b )
 	_checkerr building "bootstrap glibc"
-	debian/rules clean
+	$INSTALL_ROOTCMD debian/rules clean
 	popd
 }
 
@@ -277,14 +280,15 @@ install_glibc_bs() {
 build_glibc_bs2() {
 	pushd "$GLIBC_DIR"
 	( env DEB_CROSS_BOOTSTRAP=second \
-		dpkg-buildpackage -uc -us -a${DEB_HOST_ARCH} -b )
+		dpkg-buildpackage -uc -us -r$BUILD_ROOTCMD -a${DEB_HOST_ARCH} \
+		-b )
 	_checkerr building glibc
-	debian/rules clean
+	$BUILD_ROOTCMD debian/rules clean
 	popd
 }
 
 install_glibc_bs2() {
-	dpkg -P libc6-dev-headers-${DEB_HOST_ARCH}-cross
+	$INSTALL_ROOTCMD dpkg -P libc6-dev-headers-${DEB_HOST_ARCH}-cross
 	VERSION=`_get_version "$GLIBC_DIR"`
 	PKGPREFIX="${VERSION}_${DEB_HOST_ARCH}.deb"
 	PKGNAMES="libc6_${PKGPREFIX} libc6-dev_${PKGPREFIX}"
@@ -294,9 +298,9 @@ install_glibc_bs2() {
 
 build_glibc() {
 	pushd "$GLIBC_DIR"
-	( dpkg-buildpackage -uc -us -a${DEB_HOST_ARCH} -b )
+	( dpkg-buildpackage -uc -us -r$BUILD_ROOTCMD -a${DEB_HOST_ARCH} -b )
 	_checkerr building glibc
-	debian/rules clean
+	$BUILD_ROOTCMD debian/rules clean
 	popd
 }
 
@@ -315,9 +319,9 @@ build_gcc_bs() {
 	pushd "$GCC_DIR"
 	ARCH=${DEB_HOST_ARCH}
 	( _env; env GCC_TARGET=${ARCH} DEB_CROSS_BOOTSTRAP=yes \
-		dpkg-buildpackage -uc -us -rfakeroot -b -d )
+		dpkg-buildpackage -uc -us -r$BUILD_ROOTCMD -b -d )
 	_checkerr building "bootstrap gcc"
-	debian/rules clean
+	$BUILD_ROOTCMD debian/rules clean
 	popd
 }
 
@@ -335,9 +339,9 @@ build_gcc() {
 	pushd "$GCC_DIR"
 	ARCH=${DEB_HOST_ARCH}
 	( _env; env GCC_TARGET=${ARCH} DEB_TARGET_LIBCXX=yes \
-		dpkg-buildpackage -uc -us -rfakeroot -d )
+		dpkg-buildpackage -uc -us -r$BUILD_ROOTCMD -d )
 	_checkerr building gcc
-	debian/rules clean
+	$BUILD_ROOTCMD debian/rules clean
 	popd
 }
 
@@ -346,7 +350,7 @@ install_gcc() {
 	PKGPREFIX1="${GCC_VERSION}-${DEB_HOST_GNU_TYPE}_${VERSION}_${DEB_BUILD_ARCH}.deb"
 	PKGPREFIX2="${DEB_HOST_ARCH}-cross_${VERSION}_all.deb"
 	PKGNAMES="gcc-${PKGPREFIX1} cpp-${PKGPREFIX1} g++-${PKGPREFIX1} libgcc1-${PKGPREFIX2} libstdc++6-${PKGPREFIX2} libstdc++6-dev-${PKGPREFIX2}"
-	( cd "$SRC_DIR"; dpkg -i $PKGNAMES )
+	( cd "$SRC_DIR"; $INSTALL_ROOTCMD dpkg -i $PKGNAMES )
 	_checkerr installing gcc
 }
 
