@@ -330,7 +330,7 @@ install_gcc_bs() {
 	PKGPREFIX1="${GCC_VERSION}-${DEB_HOST_GNU_TYPE}_${VERSION}_${DEB_BUILD_ARCH}.deb"
 	PKGPREFIX2="${DEB_HOST_ARCH}-cross_${VERSION}_all.deb"
 	PKGNAMES="gcc-${PKGPREFIX1} cpp-${PKGPREFIX1} libgcc1-${PKGPREFIX2}"
-	( cd "$SRC_DIR"; dpkg -i $PKGNAMES )
+	( cd "$SRC_DIR"; $INSTALL_ROOTCMD dpkg -i $PKGNAMES )
 	_checkerr installing "bootstrap gcc"
 }
 
