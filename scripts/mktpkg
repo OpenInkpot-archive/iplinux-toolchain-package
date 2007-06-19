@@ -43,7 +43,7 @@ else
 
 	# these are needed for libpoolcare.sh
 	DEVSUITE=clydesdale
-	REPODIR="$POOL_DIR"
+	[ -n "$REPODIR" ] || REPODIR="$POOL_DIR"
 	. $POOLCARE_LIB
 	[ -n "$SRC_DIR" ] || SRC_DIR=/tmp/tpkg
 fi
