@@ -394,7 +394,7 @@ Priority: optional
 Architecture: $DEB_BUILD_ARCH
 Depends: $DEPENDS
 Source: toolchain-package
-Provides: build-essential-${DEB_BUILD_ARCH}-cross
+Provides: build-essential-${DEB_BUILD_ARCH}-cross, cross-toolchain-${DEB_HOST_ARCH}-cross, cross-toolchain-${DEB_HOST_ARCH}-dcv1
 Installed-size: 0
 Maintainer: $TPKG_MAINTAINER
 Description: cross-compilation toolchain for $DEB_HOST_ARCH
