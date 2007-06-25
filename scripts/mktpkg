@@ -266,7 +266,7 @@ build_glibc_bs() {
 		dpkg-buildpackage -uc -us -r$BUILD_ROOTCMD -a${DEB_HOST_ARCH} \
 		-b )
 	_checkerr building "bootstrap glibc"
-	$INSTALL_ROOTCMD debian/rules clean
+	$BUILD_ROOTCMD debian/rules clean
 	popd
 }
 
@@ -335,7 +335,7 @@ install_gcc_bs() {
 }
 
 build_gcc() {
-	dpkg -P ${PKGLIST_GCC}
+	$INSTALL_ROOTCMD dpkg -P ${PKGLIST_GCC}
 	pushd "$GCC_DIR"
 	ARCH=${DEB_HOST_ARCH}
 	( _env; env GCC_TARGET=${ARCH} DEB_TARGET_LIBCXX=yes \
