@@ -68,6 +68,10 @@ GCC_DIR=$SRC_DIR/gcc-$GCC_VERSION
 [ -n "$BUILD_ROOTCMD" ]   || BUILD_ROOTCMD=fakeroot
 [ -n "$INSTALL_ROOTCMD" ] || INSTALL_ROOTCMD=sudo
 
+TARGET="$1"
+MYARCH=`dpkg --print-architecture`
+eval `dpkg-architecture -a$TARGET -s`
+
 # get the source package
 # $1 -- package name
 # This fn will look up package's version in overrides db and
@@ -75,7 +79,7 @@ GCC_DIR=$SRC_DIR/gcc-$GCC_VERSION
 get_srcpkg() {
 	local _pkgname="$1"
 
-	local _version="`override_get_pkg_version $_pkgname`"
+	local _version="`override_get_pkg_version $_pkgname '' $TARGET`"
 	( cd $SRC_DIR; apt-get source $_pkgname=$_version >&2 )
 
 	local _uver="`echo $_version | sed -e 's,-.*,,'`"
@@ -95,10 +99,6 @@ if [ -f "$SLINDJOB_CONFIG" ]; then
 	GLIBC_DIR=`get_srcpkg glibc`
 	GCC_DIR=`get_srcpkg gcc-$GCC_VERSION`
 fi
-
-TARGET="$1"
-MYARCH=`dpkg --print-architecture`
-eval `dpkg-architecture -a$TARGET -s`
 
 # Set up ^C handler
 trap cleanup INT
