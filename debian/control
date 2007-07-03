@@ -1,10 +1,11 @@
 Source: toolchain-package
-Section: devel
+Section: host-tools
 Maintainer: Alexander Shishkin <virtuoso@slind.org>
 Build-Depends: debhelper (>> 2.0.0)
 Standards-Version: 3.6.2
 
 Package: toolchain-package
+Section: host-tools
 Priority: optional
 Architecture: all
 Replaces: toolchain-package-maintainer
@@ -14,6 +15,7 @@ Description: Cross-compilation toolchain builder
  toolchains for several architectures (those supported in slind).
 
 Package: toolchain-package-maintainer
+Section: host-tools
 Priority: optional
 Architecture: all
 Replaces: toolchain-package
