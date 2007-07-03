@@ -46,6 +46,12 @@ else
 	[ -n "$REPODIR" ] || REPODIR="$POOL_DIR"
 	. $POOLCARE_LIB
 	[ -n "$SRC_DIR" ] || SRC_DIR=/tmp/tpkg
+
+	# in this case, we require a second argument
+	if [ -z "$2" ]; then
+		echo "Maintainer mode requires suite name as the second argument"
+		exit 1
+	fi
 fi
 
 # SIGINT handler; removes cruft
@@ -79,7 +85,7 @@ eval `dpkg-architecture -a$TARGET -s`
 get_srcpkg() {
 	local _pkgname="$1"
 
-	local _version="`override_get_pkg_version $_pkgname '' $TARGET`"
+	local _version="`override_get_pkg_version $_pkgname $SUITE $TARGET`"
 	( cd $SRC_DIR; apt-get source $_pkgname=$_version >&2 )
 
 	local _uver="`echo $_version | sed -e 's,-.*,,'`"
@@ -385,7 +391,7 @@ make_meta_tpkg() {
 	TPKG_PKGNAME="${DEB_HOST_ARCH}-cross-toolchain"
 	TPKG_PKGDIR=$SRC_DIR/$TPKG_PKGNAME
 	
-	TPKG_VERSION=`override_get_pkg_version toolchain-package '' $TARGET`
+	TPKG_VERSION=`override_get_pkg_version toolchain-package $SUITE $TARGET`
 	[ -n "$TPKG_VERSION" ] || \
 		TPKG_VERSION="`dpkg -s toolchain-package | grep '^Version: ' | cut -d' ' -f2`"
 
