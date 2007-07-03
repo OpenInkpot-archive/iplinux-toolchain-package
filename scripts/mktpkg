@@ -384,11 +384,16 @@ make_meta_tpkg() {
 
 	TPKG_PKGNAME="${DEB_HOST_ARCH}-cross-toolchain"
 	TPKG_PKGDIR=$SRC_DIR/$TPKG_PKGNAME
+	
+	TPKG_VERSION=`override_get_pkg_version toolchain-package '' $TARGET`
+	[ -n "$TPKG_VERSION" ] || \
+		TPKG_VERSION="`dpkg -s toolchain-package | grep '^Version: ' | cut -d' ' -f2`"
+
 	mkdir -p $TPKG_PKGDIR/DEBIAN
 
 	cat > $TPKG_PKGDIR/DEBIAN/control <<EOF
 Package: $TPKG_PKGNAME
-Version: 1.0
+Version: $TPKG_VERSION
 Section: host-tools
 Priority: optional
 Architecture: $DEB_BUILD_ARCH
