@@ -75,6 +75,7 @@ GCC_DIR=$SRC_DIR/gcc-$GCC_VERSION
 [ -n "$INSTALL_ROOTCMD" ] || INSTALL_ROOTCMD=sudo
 
 TARGET="$1"
+SUITE="$2"
 MYARCH=`dpkg --print-architecture`
 eval `dpkg-architecture -a$TARGET -s`
 
