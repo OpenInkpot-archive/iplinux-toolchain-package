@@ -23,9 +23,15 @@ else
 	exit 1
 fi
 
+# Check if the user wants to forcedly rebuild the whole toolchain
+if [ "$1" = "--force" ]; then
+	FORCED_ACTION=1
+	shift
+fi
+
 if [ -z "$1" ]; then
 	echo
-	echo "Usage: $0 <target_arch>"
+	echo "Usage: $0 [--force] <target_arch>"
 	echo
 	echo "<target_arch>	must be a Debian architecture string."
 	exit 1
@@ -34,7 +40,7 @@ fi
 # presence of slindjob-config effectively indicates that we
 # should build things from _source_ packages, not the binary-packaged
 # sources; this is not entirely correct, but will do for now
-SLINDJOB_CONFIG=/etc/slindjob-config
+SLINDJOB_CONFIG=~/.slindjob-config
 POOLCARE_LIB=/usr/lib/slind-core/libpoolcare.sh
 if [ ! -f "$SLINDJOB_CONFIG" ]; then
 	SRC_DIR=/usr/src
@@ -184,6 +190,25 @@ _crossinst() {
 	done
 }
 
+# check if a package is installed
+# $@ -- binary package names
+_checkinst() {
+	local _pkg
+	local _status
+
+	while [ -n "$1" ]; do
+		_pkg="$1"
+		_status=`dpkg -s "$_pkg" | grep '^Status: ' | cut -d' ' -f4`
+		if [ "$?" != "0" -o "$_status" != "installed" ]; then
+			exit
+		fi
+
+		shift
+	done
+
+	echo "installed"
+}
+
 # ------------------------------------------------------- #
 # tools                                                   #
 # ------------------------------------------------------- #
@@ -193,6 +218,18 @@ _crossinst() {
 ############
 # binutils #
 ############
+do_binutils() {
+	VERSION=`_get_version "$BINUTILS_DIR"`
+	PKGNAME="binutils-${DEB_HOST_GNU_CPU}-linux-${LIBC_TARGET}"
+	
+	if [ -z "`_checkinst $PKGNAME`" -o -n "$FORCED_ACTION" ]; then
+		build_binutils
+		install_binutils
+	else
+		echo "binutils ($PKGNAME) appears to be installed, skipping"
+	fi
+}
+
 build_binutils() {
 	pushd "$BINUTILS_DIR"
 	_ARCH=$DEB_HOST_ARCH
@@ -212,6 +249,18 @@ install_binutils() {
 ########################
 # linux-kernel-headers #
 ########################
+do_lkh() {
+	VERSION=`_get_version "$LKH_DIR"`
+	PKGNAME="linux-kernel-headers-${DEB_HOST_ARCH}-cross"
+	
+	if [ -z "`_checkinst $PKGNAME`" -o -n "$FORCED_ACTION" ]; then
+		build_lkh
+		install_lkh
+	else
+		echo "linux-kernel-headers ($PKGNAME) appears to be installed, skipping"
+	fi
+}
+
 build_lkh() {
 	pushd "$LKH_DIR"
 	dpkg-buildpackage -uc -us -r$BUILD_ROOTCMD -a${DEB_HOST_ARCH} -d
@@ -227,9 +276,43 @@ install_lkh() {
 	_checkerr installing linux-kernel-headers
 }
 
+##### c libraries #####
+do_stage1_libc() {
+	if [ "$DEB_HOST_ARCH_OS" = "uclibc" ]; then
+		do_uclibc_bs
+	else
+		do_glibc_bs
+	fi
+}
+
+do_stage2_libc() {
+	if [ "$DEB_HOST_ARCH_OS" = "uclibc" ]; then
+		do_uclibc
+	else
+		do_glibc_bs2
+	fi
+}
+
 ##########
 # uclibc #
 ##########
+do_uclibc_bs() {
+	VERSION=`_get_version "$UCLIBC_DIR"`
+	PKGNAME1="libuclibc-dev-headers-${DEB_HOST_ARCH}-cross"
+	PKGNAME2="libuclibc0-${DEB_HOST_ARCH}-cross libuclibc-dev-${DEB_HOST_ARCH}-cross"
+
+	if [ -z "`_checkinst $PKGNAME2`" -o -n "$FORCED_ACTION" ]; then
+		if [ -z "`_checkinst $PKGNAME1`" -o -n "$FORCED_ACTION" ]; then
+			build_uclibc_bs
+			install_uclibc_bs
+		else
+			echo "uclibc ($PKGNAME1) appears to be installed, skipping"
+		fi
+	else
+		echo "uclibc ($PKGNAME2) appears to be installed, skipping"
+	fi
+}
+
 build_uclibc_bs() {
 	pushd "$UCLIBC_DIR"
 	( env DEB_CROSS_BOOTSTRAP=yes \
@@ -245,6 +328,18 @@ install_uclibc_bs() {
 	PKGNAME="libuclibc-dev-headers_${VERSION}_${DEB_HOST_ARCH}.deb"
 	_crossinst $PKGNAME
 	_checkerr installing "bootstrap uclibc"
+}
+
+do_uclibc() {
+	VERSION=`_get_version "$UCLIBC_DIR"`
+	PKGNAME="libuclibc0-${DEB_HOST_ARCH}-cross libuclibc-dev-${DEB_HOST_ARCH}-cross"
+
+	if [ -z "`_checkinst $PKGNAME`" -o -n "$FORCED_ACTION" ]; then
+		build_uclibc
+		install_uclibc
+	else
+		echo "uclibc ($PKGNAME) appears to be installed, skipping"
+	fi
 }
 
 build_uclibc() {
@@ -267,6 +362,23 @@ install_uclibc() {
 #########
 # glibc #
 #########
+do_glibc_bs() {
+	VERSION=`_get_version "$GLIBC_DIR"`
+	PKGNAME1="libc6-dev-headers-${DEB_HOST_ARCH}-cross"
+	PKGNAME2="libc6-${DEB_HOST_ARCH}-cross libc6-dev-${DEB_HOST_ARCH}-cross"
+
+	if [ -z "`_checkinst $PKGNAME2`" -o -n "$FORCED_ACTION" ]; then
+		if [ -z "`_checkinst $PKGNAME1`" -o -n "$FORCED_ACTION" ]; then
+			build_glibc_bs
+			install_glibc_bs
+		else
+			echo "glibc ($PKGNAME1) appears to be installed, skipping"
+		fi
+	else
+		echo "glibc ($PKGNAME2) appears to be installed, skipping"
+	fi
+}
+
 build_glibc_bs() {
 	pushd "$GLIBC_DIR"
 	( env DEB_CROSS_BOOTSTRAP=yes \
@@ -282,6 +394,18 @@ install_glibc_bs() {
 	PKGNAME="libc6-dev-headers_${VERSION}_${DEB_HOST_ARCH}.deb"
 	_crossinst $PKGNAME
 	_checkerr installing "bootstrap glibc"
+}
+
+do_glibc_bs2() {
+	VERSION=`_get_version "$GLIBC_DIR"`
+	PKGNAME="libc6-${DEB_HOST_ARCH}-cross libc6-dev-${DEB_HOST_ARCH}-cross"
+
+	if [ -z "`_checkinst $PKGNAME`" -o -n "$FORCED_ACTION" ]; then
+		build_glibc_bs2
+		install_glibc_bs2
+	else
+		echo "glibc ($PKGNAME) appears to be installed, skipping"
+	fi
 }
 
 build_glibc_bs2() {
@@ -303,6 +427,11 @@ install_glibc_bs2() {
 	_checkerr installing glibc
 }
 
+do_glibc() {
+	build_glibc
+	install_glibc
+}
+
 build_glibc() {
 	pushd "$GLIBC_DIR"
 	( dpkg-buildpackage -uc -us -r$BUILD_ROOTCMD -a${DEB_HOST_ARCH} -b )
@@ -322,6 +451,21 @@ install_glibc() {
 #######
 # gcc #
 #######
+do_stage1() {
+	VERSION=`_get_version "$GCC_DIR"`
+	PKGPREFIX1="${GCC_VERSION}-${DEB_HOST_GNU_TYPE}"
+	PKGPREFIX2="${DEB_HOST_ARCH}-cross"
+	PKGNAMES="gcc-${PKGPREFIX1} cpp-${PKGPREFIX1} libgcc1-${PKGPREFIX2}"
+
+	if [ -z "`_checkinst $PKGNAMES`" -o -n "$FORCED_ACTION" ]; then
+		do_stage1_libc
+		build_gcc_bs
+		install_gcc_bs
+	else
+		echo "base compiler ($PKGNAMES) appears to be installed, skipping"
+	fi
+}
+
 build_gcc_bs() {
 	pushd "$GCC_DIR"
 	ARCH=${DEB_HOST_ARCH}
@@ -339,6 +483,21 @@ install_gcc_bs() {
 	PKGNAMES="gcc-${PKGPREFIX1} cpp-${PKGPREFIX1} libgcc1-${PKGPREFIX2}"
 	( cd "$SRC_DIR"; $INSTALL_ROOTCMD dpkg -i $PKGNAMES )
 	_checkerr installing "bootstrap gcc"
+}
+
+do_stage2() {
+	VERSION=`_get_version "$GCC_DIR"`
+	PKGPREFIX1="${GCC_VERSION}-${DEB_HOST_GNU_TYPE}"
+	PKGPREFIX2="${DEB_HOST_ARCH}-cross"
+	PKGNAMES="gcc-${PKGPREFIX1} cpp-${PKGPREFIX1} g++-${PKGPREFIX1} libgcc1-${PKGPREFIX2} libstdc++6-${PKGPREFIX2} libstdc++6-dev-${PKGPREFIX2}"
+
+	if [ -z "`_checkinst $PKGNAMES`" -o -n "$FORCED_ACTION" ]; then
+		do_stage2_libc
+		build_gcc
+		install_gcc
+	else
+		echo "compiler ($PKGNAMES) appears to be installed, skipping"
+	fi
 }
 
 build_gcc() {
@@ -415,37 +574,15 @@ Description: cross-compilation toolchain for $DEB_HOST_ARCH
 EOF
 
 	dpkg-deb -b $TPKG_PKGDIR
+	$INSTALL_ROOTCMD dpkg -i $SRC_DIR/${TPKG_PKGNAME}.deb
 	dpkg-name $SRC_DIR/${TPKG_PKGNAME}.deb
 }
 
-build_binutils
-install_binutils
-build_lkh
-install_lkh
-
-if [ "$DEB_HOST_ARCH_OS" = "uclibc" ]; then
-	build_uclibc_bs
-	install_uclibc_bs
-else
-	build_glibc_bs
-	install_glibc_bs
-fi
-
-build_gcc_bs
-install_gcc_bs
-
-if [ "$DEB_HOST_ARCH_OS" = "uclibc" ]; then
-	build_uclibc
-	install_uclibc
-else
-	build_glibc_bs2
-	install_glibc_bs2
-fi
-
-build_gcc
-install_gcc
-
-if [ "$DEB_HOST_ARCH_OS" != "uclibc" ]; then
+do_binutils
+do_lkh
+do_stage1
+do_stage2
+if [ "$DEB_HOST_ARCH_OS" = "linux" ]; then
 	build_glibc
 	install_glibc
 fi
