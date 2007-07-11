@@ -80,6 +80,9 @@ GCC_DIR=$SRC_DIR/gcc-$GCC_VERSION
 [ -n "$BUILD_ROOTCMD" ]   || BUILD_ROOTCMD=fakeroot
 [ -n "$INSTALL_ROOTCMD" ] || INSTALL_ROOTCMD=sudo
 
+# Options to apt-get source
+[ -n "$APT_OPTS" ] || APT_OPTS="Acquire::Source-Symlinks=False"
+
 TARGET="$1"
 SUITE="$2"
 MYARCH=`dpkg --print-architecture`
@@ -93,7 +96,7 @@ get_srcpkg() {
 	local _pkgname="$1"
 
 	local _version="`override_get_pkg_version $_pkgname $SUITE $TARGET`"
-	( cd $SRC_DIR; apt-get source $_pkgname=$_version >&2 )
+	( cd $SRC_DIR; apt-get -o $APT_OPTS source $_pkgname=$_version >&2 )
 
 	local _uver="`echo $_version | sed -e 's,-.*,,'`"
 
