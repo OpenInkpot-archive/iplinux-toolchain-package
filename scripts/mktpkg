@@ -64,7 +64,7 @@ fi
 # if $NO_CLEAN is set in the environment, this function does nothing
 cleanup() {
 	if [ -z "$NO_CLEAN" ]; then
-		if [ -n "$POOL_DIR" -a "$SRC_DIR" != "/usr/src" ]; then
+		if [ -n "$REPODIR" -a "$SRC_DIR" != "/usr/src" ]; then
 			rm -rf "$SRC_DIR"
 		fi
 	fi
