@@ -201,7 +201,7 @@ _checkinst() {
 
 	while [ -n "$1" ]; do
 		_pkg="$1"
-		_status=`dpkg -s "$_pkg" | grep '^Status: ' | cut -d' ' -f4`
+		_status=`dpkg -s "$_pkg" 2>/dev/null | grep '^Status: ' | cut -d' ' -f4`
 		if [ "$?" != "0" -o "$_status" != "installed" ]; then
 			exit
 		fi
