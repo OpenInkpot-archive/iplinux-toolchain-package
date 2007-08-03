@@ -49,7 +49,8 @@ else
 
 	# these are needed for libpoolcare.sh
 	DEVSUITE=clydesdale
-	[ -n "$SLIND_REPO" ] || REPODIR="$HOME/grasp-out"
+	[ -n "$SLIND_REPO" ] || SLIND_REPO="$HOME/grasp-out"
+	REPODIR="$SLIND_REPO"
 	. $POOLCARE_LIB
 	[ -n "$SRC_DIR" ] || SRC_DIR=/tmp/tpkg
 
@@ -64,7 +65,7 @@ fi
 # if $NO_CLEAN is set in the environment, this function does nothing
 cleanup() {
 	if [ -z "$NO_CLEAN" ]; then
-		if [ -n "$REPODIR" -a "$SRC_DIR" != "/usr/src" ]; then
+		if [ -n "$SLIND_REPO" -a "$SRC_DIR" != "/usr/src" ]; then
 			rm -rf "$SRC_DIR"
 		fi
 	fi
