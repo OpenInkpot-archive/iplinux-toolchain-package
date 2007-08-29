@@ -37,19 +37,27 @@ if [ -z "$1" ]; then
 	exit 1
 fi
 
+LIBUTILS=/usr/lib/slind-core/libutils.sh
+if [ -f "$LIBUTILS" ]; then
+        . $LIBUTILS
+else
+        echo "Error: can't load library $LIBUTILS"
+        exit 1
+fi
+
+POOLCARE_LIB=/usr/lib/slind-core/libpoolcare.sh
+
 # presence of slindjob-config effectively indicates that we
 # should build things from _source_ packages, not the binary-packaged
 # sources; this is not entirely correct, but will do for now
-SLINDJOB_CONFIG=~/.slindjob-config
-POOLCARE_LIB=/usr/lib/slind-core/libpoolcare.sh
-if [ ! -f "$SLINDJOB_CONFIG" ]; then
+CHR_PKGLIST_DIR=`conf_get_var_relaxed $SLIND_CONFIG slindjob chr_pkglist_dir`
+if [ ! -f "$CHR_PKGLIST_DIR" ]; then
 	SRC_DIR=/usr/src
+	CHR_PKGLIST_DIR=""
 else
-	. $SLINDJOB_CONFIG
-
 	# these are needed for libpoolcare.sh
-	DEVSUITE=clydesdale
-	[ -n "$SLIND_REPO" ] || SLIND_REPO="$HOME/grasp-out"
+	DEVSUITE=`conf_get_var_strict $SLIND_CONFIG common slind_suite`
+	SLIND_REPO=`conf_get_var_strict $SLIND_CONFIG maintainer-common chr_repodir`
 	REPODIR="$SLIND_REPO"
 	. $POOLCARE_LIB
 	[ -n "$SRC_DIR" ] || SRC_DIR=/tmp/tpkg
