@@ -10,13 +10,13 @@
 
 if [ -n "$DEBUG" ]; then
     # Start debugging.
-    source /usr/share/bashdb/bashdb-main.inc
+    source /usr/lib/slind-maintainer-core/bashdb-trace
     _Dbg_set_trace ; : ; :
 fi
 
 if [ -n "$TRACE" ]; then
     # Start line tracing.
-    source /usr/share/bashdb/bashdb-main.inc
+    source /usr/lib/slind-maintainer-core/bashdb-trace
     _Dbg_linetrace_on
 fi
 
