@@ -26,15 +26,6 @@ if [ -z "$GCC_VERSION" ]; then
 	GCC_VERSION=4.1
 fi
 
-# our private stuff
-if [ -f /etc/toolchain-package/pkglists.conf ]; then
-	source /etc/toolchain-package/config
-	source /etc/toolchain-package/pkglists.conf
-else
-	echo "Cannot find configuration file"
-	exit 1
-fi
-
 # Check if the user wants to forcedly rebuild the whole toolchain
 if [ "$1" = "--force" ]; then
 	FORCED_ACTION=1
@@ -113,6 +104,15 @@ TARGET="$1"
 SUITE="$2"
 MYARCH=`dpkg --print-architecture`
 eval `dpkg-architecture -a$TARGET -s`
+
+# our private stuff
+if [ -f /etc/toolchain-package/pkglists.conf ]; then
+	source /etc/toolchain-package/config
+	source /etc/toolchain-package/pkglists.conf
+else
+	echo "Cannot find configuration file"
+	exit 1
+fi
 
 # get the source package
 # $1 -- package name
