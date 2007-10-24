@@ -10,13 +10,13 @@
 
 if [ -n "$DEBUG" ]; then
     # Start debugging.
-    source /usr/lib/slind-maintainer-core/bashdb-trace
+    source /usr/lib/slind-maintainer-core/bashdb-trace -q
     _Dbg_set_trace ; : ; :
 fi
 
 if [ -n "$TRACE" ]; then
     # Start line tracing.
-    source /usr/lib/slind-maintainer-core/bashdb-trace
+    source /usr/lib/slind-maintainer-core/bashdb-trace -q
     _Dbg_linetrace_on
 fi
 
@@ -51,6 +51,9 @@ fi
 load_slind_config_common
 load_slind_config_maintainer_common
 load_suites_config
+
+[ -n "$HTTP_PROXY_URL" ] && PROXYENV="http_proxy=$HTTP_PROXY_URL"
+[ -n "$FTP_PROXY_URL" ]  && PROXYENV="$PROXYENV ftp_proxy=$FTP_PROXY_URL"
 
 POOLCARE_LIB=/usr/lib/slind-core/libpoolcare.sh
 
@@ -489,7 +492,13 @@ do_stage1() {
 	if [ -z "`_checkinst $PKGNAMES`" -o -n "$FORCED_ACTION" ]; then
 		do_stage1_libc
 		build_gcc_bs
+		if [ "x$MYARCH" = "x$DEB_HOST_ARCH" ]; then
+		    remove_native_toolchain
+		fi
 		install_gcc_bs
+		if [ "x$MYARCH" = "x$DEB_HOST_ARCH" ]; then
+		    install_virtual_bs_toolchain
+		fi
 	else
 		echo "base compiler ($PKGNAMES) appears to be installed, skipping"
 	fi
@@ -522,8 +531,18 @@ do_stage2() {
 
 	if [ -z "`_checkinst $PKGNAMES`" -o -n "$FORCED_ACTION" ]; then
 		do_stage2_libc
+		if [ "x$MYARCH" = "x$DEB_HOST_ARCH" ]; then
+		    remove_cross_bs_toolchain
+		    install_native_toolchain
+		fi
 		build_gcc
+		if [ "x$MYARCH" = "x$DEB_HOST_ARCH" ]; then
+		    remove_native_toolchain
+		fi
 		install_gcc
+		if [ "x$MYARCH" = "x$DEB_HOST_ARCH" ]; then
+		    install_virtual_toolchain
+		fi
 	else
 		echo "compiler ($PKGNAMES) appears to be installed, skipping"
 	fi
@@ -606,6 +625,157 @@ EOF
 	$INSTALL_ROOTCMD dpkg -i $SRC_DIR/${TPKG_PKGNAME}.deb
 	dpkg-name $SRC_DIR/${TPKG_PKGNAME}.deb
 }
+
+install_virtual_toolchain() {
+	TPKG_PKGNAME="${DEB_HOST_ARCH}-toolchain"
+	TPKG_PKGDIR=$SRC_DIR/$TPKG_PKGNAME
+	# render package's "Depends:" header
+	BINUTILS_VERSION=`_get_version "$BINUTILS_DIR"`
+	BINUTILS_PKGDEP="binutils-${DEB_HOST_GNU_TYPE} (= ${BINUTILS_VERSION})"
+
+	LKH_VERSION=`_get_version "$LKH_DIR"`
+	LKH_PKGDEP="linux-kernel-headers-${DEB_HOST_ARCH}-cross (= ${LKH_VERSION})"
+
+	UCLIBC_VERSION=`_get_version "$UCLIBC_DIR"`
+	UCLIBC_PKGDEP="libuclibc0-${DEB_HOST_ARCH}-cross (= ${UCLIBC_VERSION}), libuclibc-dev-${DEB_HOST_ARCH}-cross (= ${UCLIBC_VERSION})"
+
+	GLIBC_VERSION=`_get_version "$GLIBC_DIR"`
+	GLIBC_PKGDEP="libc6-${DEB_HOST_ARCH}-cross (= ${GLIBC_VERSION}), libc6-dev-${DEB_HOST_ARCH}-cross (= ${GLIBC_VERSION})"
+
+	GCCPKG_VERSION=`_get_version "$GCC_DIR"`
+	GCC_PKGDEP="gcc-${GCC_VERSION}-${DEB_HOST_GNU_TYPE} (= ${GCCPKG_VERSION}), cpp-${GCC_VERSION}-${DEB_HOST_GNU_TYPE} (= ${GCCPKG_VERSION}), g++-${GCC_VERSION}-${DEB_HOST_GNU_TYPE} (= ${GCCPKG_VERSION}), libgcc1-${DEB_HOST_ARCH}-cross (= ${GCCPKG_VERSION}), libstdc++6-${DEB_HOST_ARCH}-cross (= ${GCCPKG_VERSION}), libstdc++6-dev-${DEB_HOST_ARCH}-cross (= ${GCCPKG_VERSION})"
+	
+	if [ -z "$TPKG_MAINTAINER" ]; then
+		TPKG_MAINTAINER="Alexander Shishkin <virtuoso@slind.org>"
+	fi
+	
+	mkdir -p $TPKG_PKGDIR/DEBIAN
+
+	cat > $TPKG_PKGDIR/DEBIAN/control <<EOF
+Package: $TPKG_PKGNAME
+Version: 0.1
+Section: host-tools
+Priority: optional
+Architecture: all
+Depends: g++-${GCC_VERSION}-${DEB_HOST_GNU_TYPE} (= ${GCCPKG_VERSION}), libc6-dev-${DEB_HOST_ARCH}-cross (= ${GLIBC_VERSION})
+Source: toolchain-package
+Conflicts: gcc-${GCC_VERSION}, cpp-${GCC_VERSION}, g++-${GCC_VERSION}
+Provides: gcc-${GCC_VERSION}, cpp-${GCC_VERSION}, g++-${GCC_VERSION}, gcc, cpp, g++
+Installed-size: 4
+Maintainer: $TPKG_MAINTAINER
+Description: Meta-package to remove native Debian toolchain
+ WARNING! WARNING! WARNING!
+ By installing this package, you confirm that you do not want to compile
+ anything with native compiler anymore. You confirm that you do not care whether
+ anything compiled with Slind's compiler would run on your Debian system or not.
+EOF
+
+	mkdir -p $TPKG_PKGDIR/usr/share/doc/$TPKG_PKGNAME
+	cat > $TPKG_PKGDIR/usr/share/doc/$TPKG_PKGNAME/changelog <<EOF
+$TPKG_PKGNAME (0.1) unstable; urgency=low
+
+  * Initial release.
+
+ -- $TPKG_MAINTAINER  `date --rfc-822`
+EOF
+
+	mkdir -p $TPKG_PKGDIR/usr/bin
+	
+	# Install symlinks.
+	ln -s /usr/bin/${DEB_HOST_GNU_TYPE}-gcc-${GCC_VERSION} $TPKG_PKGDIR/usr/bin/cc
+	ln -s /usr/bin/${DEB_HOST_GNU_TYPE}-gcc-${GCC_VERSION} $TPKG_PKGDIR/usr/bin/gcc
+	ln -s /usr/bin/${DEB_HOST_GNU_TYPE}-cpp-${GCC_VERSION} $TPKG_PKGDIR/usr/bin/cpp
+	ln -s /usr/bin/${DEB_HOST_GNU_TYPE}-g++-${GCC_VERSION} $TPKG_PKGDIR/usr/bin/g++
+	ln -s /usr/bin/${DEB_HOST_GNU_TYPE}-gcc-${GCC_VERSION} $TPKG_PKGDIR/usr/bin/gcc-${GCC_VERSION} 
+	ln -s /usr/bin/${DEB_HOST_GNU_TYPE}-cpp-${GCC_VERSION} $TPKG_PKGDIR/usr/bin/cpp-${GCC_VERSION} 
+	ln -s /usr/bin/${DEB_HOST_GNU_TYPE}-g++-${GCC_VERSION} $TPKG_PKGDIR/usr/bin/g++-${GCC_VERSION}
+
+	dpkg-deb -b $TPKG_PKGDIR
+	$INSTALL_ROOTCMD dpkg -i $SRC_DIR/${TPKG_PKGNAME}.deb
+	dpkg-name $SRC_DIR/${TPKG_PKGNAME}.deb
+}
+
+remove_native_toolchain() {
+	$INSTALL_ROOTCMD apt-get -y --force-yes remove gcc-$GCC_VERSION cpp-$GCC_VERSION gcc cpp
+}
+
+install_native_toolchain() {
+	$INSTALL_ROOTCMD env $PROXYENV apt-get -y --force-yes install gcc-$GCC_VERSION cpp-$GCC_VERSION g++-$GCC_VERSION gcc cpp g++
+}
+
+install_virtual_bs_toolchain() {
+	TPKG_PKGNAME="${DEB_HOST_ARCH}-bootstrap-toolchain"
+	TPKG_PKGDIR=$SRC_DIR/$TPKG_PKGNAME
+	# render package's "Depends:" header
+	BINUTILS_VERSION=`_get_version "$BINUTILS_DIR"`
+	BINUTILS_PKGDEP="binutils-${DEB_HOST_GNU_TYPE} (= ${BINUTILS_VERSION})"
+
+	LKH_VERSION=`_get_version "$LKH_DIR"`
+	LKH_PKGDEP="linux-kernel-headers-${DEB_HOST_ARCH}-cross (= ${LKH_VERSION})"
+
+	UCLIBC_VERSION=`_get_version "$UCLIBC_DIR"`
+	UCLIBC_PKGDEP="libuclibc0-${DEB_HOST_ARCH}-cross (= ${UCLIBC_VERSION}), libuclibc-dev-${DEB_HOST_ARCH}-cross (= ${UCLIBC_VERSION})"
+
+	GLIBC_VERSION=`_get_version "$GLIBC_DIR"`
+	GLIBC_PKGDEP="libc6-${DEB_HOST_ARCH}-cross (= ${GLIBC_VERSION}), libc6-dev-${DEB_HOST_ARCH}-cross (= ${GLIBC_VERSION})"
+
+	GCCPKG_VERSION=`_get_version "$GCC_DIR"`
+	GCC_PKGDEP="gcc-${GCC_VERSION}-${DEB_HOST_GNU_TYPE} (= ${GCCPKG_VERSION}), cpp-${GCC_VERSION}-${DEB_HOST_GNU_TYPE} (= ${GCCPKG_VERSION}), libgcc1-${DEB_HOST_ARCH}-cross (= ${GCCPKG_VERSION})"
+	
+	if [ -z "$TPKG_MAINTAINER" ]; then
+		TPKG_MAINTAINER="Alexander Shishkin <virtuoso@slind.org>"
+	fi
+	
+	mkdir -p $TPKG_PKGDIR/DEBIAN
+
+	cat > $TPKG_PKGDIR/DEBIAN/control <<EOF
+Package: $TPKG_PKGNAME
+Version: 0.1
+Section: host-tools
+Priority: optional
+Architecture: all
+Depends: gcc-${GCC_VERSION}-${DEB_HOST_GNU_TYPE} (= ${GCCPKG_VERSION}), cpp-${GCC_VERSION}-${DEB_HOST_GNU_TYPE} (= ${GCCPKG_VERSION})
+Source: toolchain-package
+Conflicts: gcc-${GCC_VERSION}, cpp-${GCC_VERSION}
+Provides: gcc-${GCC_VERSION}, cpp-${GCC_VERSION}, gcc, cpp
+Installed-size: 4
+Maintainer: $TPKG_MAINTAINER
+Description: Meta-package to remove native Debian toolchain
+ WARNING! WARNING! WARNING!
+ By installing this package, you confirm that you do not want to compile
+ anything with native compiler anymore. You confirm that you do not care whether
+ anything compiled with Slind's compiler would run on your Debian system or not.
+EOF
+
+	mkdir -p $TPKG_PKGDIR/usr/share/doc/$TPKG_PKGNAME
+	cat > $TPKG_PKGDIR/usr/share/doc/$TPKG_PKGNAME/changelog <<EOF
+$TPKG_PKGNAME (0.1) unstable; urgency=low
+
+  * Initial release.
+
+ -- $TPKG_MAINTAINER  `date --rfc-822`
+EOF
+
+	mkdir -p $TPKG_PKGDIR/usr/bin
+	
+	# Install symlinks.
+	ln -s /usr/bin/${DEB_HOST_GNU_TYPE}-gcc-${GCC_VERSION} $TPKG_PKGDIR/usr/bin/cc
+	ln -s /usr/bin/${DEB_HOST_GNU_TYPE}-gcc-${GCC_VERSION} $TPKG_PKGDIR/usr/bin/gcc
+	ln -s /usr/bin/${DEB_HOST_GNU_TYPE}-cpp-${GCC_VERSION} $TPKG_PKGDIR/usr/bin/cpp
+	ln -s /usr/bin/${DEB_HOST_GNU_TYPE}-gcc-${GCC_VERSION} $TPKG_PKGDIR/usr/bin/gcc-${GCC_VERSION} 
+	ln -s /usr/bin/${DEB_HOST_GNU_TYPE}-cpp-${GCC_VERSION} $TPKG_PKGDIR/usr/bin/cpp-${GCC_VERSION} 
+
+	dpkg-deb -b $TPKG_PKGDIR
+	$INSTALL_ROOTCMD dpkg -i $SRC_DIR/${TPKG_PKGNAME}.deb
+	dpkg-name $SRC_DIR/${TPKG_PKGNAME}.deb
+}
+
+remove_cross_bs_toolchain() {
+	GCC_PKG="gcc-${GCC_VERSION}-${DEB_HOST_GNU_TYPE} cpp-${GCC_VERSION}-${DEB_HOST_GNU_TYPE} libgcc1-${DEB_HOST_ARCH}-cross ${DEB_HOST_ARCH}-bootstrap-toolchain"
+
+	$INSTALL_ROOTCMD apt-get -y --force-yes remove $GCC_PKG
+}
+
 
 do_binutils
 do_lkh
