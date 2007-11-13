@@ -96,6 +96,7 @@ LKH_DIR=$SRC_DIR/linux-kernel-headers-source
 UCLIBC_DIR=$SRC_DIR/libuclibc-source
 GLIBC_DIR=$SRC_DIR/glibc-source
 GCC_DIR=$SRC_DIR/gcc-$GCC_VERSION
+PKGCONFIG_DIR=$SRC_DIR/pkg-config-source
 
 [ -n "$BUILD_ROOTCMD" ]   || BUILD_ROOTCMD=fakeroot
 [ -n "$INSTALL_ROOTCMD" ] || INSTALL_ROOTCMD=sudo
@@ -143,6 +144,7 @@ if [ -d "$CHR_PKGLIST_DIR" ]; then
 	UCLIBC_DIR=`get_srcpkg uclibc`
 	GLIBC_DIR=`get_srcpkg glibc`
 	GCC_DIR=`get_srcpkg gcc-$GCC_VERSION`
+	PKGCONFIG_DIR=`get_srcpkg pkg-config`
 fi
 
 # Set up ^C handler
@@ -568,6 +570,38 @@ install_gcc() {
 	_checkerr installing gcc
 }
 
+##############
+# pkg-config #
+##############
+do_pkgconfig() {
+	VERSION=`_get_version "$PKGCONFIG_DIR"`
+	PKGNAME="pkg-config-${DEB_HOST_GNU_TYPE}"
+	
+	if [ -z "`_checkinst $PKGNAME`" -o -n "$FORCED_ACTION" ]; then
+		build_pkgconfig
+		install_pkgconfig
+	else
+		echo "pkg-config ($PKGNAME) appears to be installed, skipping"
+	fi
+}
+
+build_pkgconfig() {
+	pushd "$PKGCONFIG_DIR"
+	ARCH=${DEB_HOST_ARCH}
+	( _env; env TARGET=${ARCH} \
+		dpkg-buildpackage -uc -us -r$BUILD_ROOTCMD -b -d )
+	_checkerr building "pkg-config"
+	$BUILD_ROOTCMD debian/rules clean
+	popd
+}
+
+install_pkgconfig() {
+	VERSION=`_get_version "$PKGCONFIG_DIR"`
+	PKGNAMES="pkg-config-${DEB_HOST_GNU_TYPE}_${VERSION}_${DEB_BUILD_ARCH}.deb"
+	( cd "$SRC_DIR"; $INSTALL_ROOTCMD dpkg -i $PKGNAMES )
+	_checkerr installing "pkg-config"
+}
+
 make_meta_tpkg() {
 	# render package's "Depends:" header
 	BINUTILS_VERSION=`_get_version "$BINUTILS_DIR"`
@@ -585,7 +619,11 @@ make_meta_tpkg() {
 	GCCPKG_VERSION=`_get_version "$GCC_DIR"`
 	GCC_PKGDEP="gcc-${GCC_VERSION}-${DEB_HOST_GNU_TYPE} (= ${GCCPKG_VERSION}), cpp-${GCC_VERSION}-${DEB_HOST_GNU_TYPE} (= ${GCCPKG_VERSION}), g++-${GCC_VERSION}-${DEB_HOST_GNU_TYPE} (= ${GCCPKG_VERSION}), libgcc1-${DEB_HOST_ARCH}-cross (= ${GCCPKG_VERSION}), libstdc++6-${DEB_HOST_ARCH}-cross (= ${GCCPKG_VERSION}), libstdc++6-dev-${DEB_HOST_ARCH}-cross (= ${GCCPKG_VERSION})"
 
-	DEPENDS="northern-cross, $BINUTILS_PKGDEP, $LKH_PKGDEP, $GCC_PKGDEP, "
+	PKGCONFIG_VERSION=`_get_version "$PKGCONFIG_DIR"`
+	PKGCONFIG_PKGDEP="pkg-config-${DEB_HOST_GNU_TYPE} (= ${PKGCONFIG_VERSION})"
+
+	DEPENDS="northern-cross, $BINUTILS_PKGDEP, $LKH_PKGDEP, $GCC_PKGDEP,"
+	DEPENDS="$DEPENDS $PKGCONFIG_PKGDEP, "
 	if [ "$DEB_HOST_ARCH_OS" = "uclibc" ]; then
 		DEPENDS="$DEPENDS $UCLIBC_PKGDEP"
 	else
@@ -785,6 +823,7 @@ if [ "$DEB_HOST_ARCH_OS" = "linux" ]; then
 	build_glibc
 	install_glibc
 fi
+do_pkgconfig
 
 make_meta_tpkg
 
