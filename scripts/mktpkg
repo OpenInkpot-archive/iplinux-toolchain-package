@@ -96,6 +96,7 @@ LKH_DIR=$SRC_DIR/linux-kernel-headers-source
 UCLIBC_DIR=$SRC_DIR/libuclibc-source
 GLIBC_DIR=$SRC_DIR/glibc-source
 GCC_DIR=$SRC_DIR/gcc-$GCC_VERSION
+GDB_DIR=$SRC_DIR/gdb-source
 PKGCONFIG_DIR=$SRC_DIR/pkg-config-source
 
 [ -n "$BUILD_ROOTCMD" ]   || BUILD_ROOTCMD=fakeroot
@@ -144,6 +145,7 @@ if [ -d "$CHR_PKGLIST_DIR" ]; then
 	UCLIBC_DIR=`get_srcpkg uclibc`
 	GLIBC_DIR=`get_srcpkg glibc`
 	GCC_DIR=`get_srcpkg gcc-$GCC_VERSION`
+	GDB_DIR=`get_srcpkg gdb`
 	PKGCONFIG_DIR=`get_srcpkg pkg-config`
 fi
 
@@ -602,6 +604,38 @@ install_pkgconfig() {
 	_checkerr installing "pkg-config"
 }
 
+#######
+# gdb #
+#######
+do_gdb() {
+	VERSION=`_get_version "$GDB_DIR"`
+	PKGNAME="gdb-${DEB_HOST_GNU_TYPE}"
+	
+	if [ -z "`_checkinst $PKGNAME`" -o -n "$FORCED_ACTION" ]; then
+		build_gdb
+		install_gdb
+	else
+		echo "gdb ($PKGNAME) appears to be installed, skipping"
+	fi
+}
+
+build_gdb() {
+	pushd "$GDB_DIR"
+	ARCH=${DEB_HOST_ARCH}
+	( _env; env GDB_TARGET=${ARCH} \
+		dpkg-buildpackage -uc -us -r$BUILD_ROOTCMD -b -d )
+	_checkerr building "gdb"
+	$BUILD_ROOTCMD debian/rules clean
+	popd
+}
+
+install_gdb() {
+	VERSION=`_get_version "$GDB_DIR"`
+	PKGNAMES="gdb-${DEB_HOST_GNU_TYPE}_${VERSION}_${DEB_BUILD_ARCH}.deb"
+	( cd "$SRC_DIR"; $INSTALL_ROOTCMD dpkg -i $PKGNAMES )
+	_checkerr installing "gdb"
+}
+
 make_meta_tpkg() {
 	# render package's "Depends:" header
 	BINUTILS_VERSION=`_get_version "$BINUTILS_DIR"`
@@ -622,8 +656,11 @@ make_meta_tpkg() {
 	PKGCONFIG_VERSION=`_get_version "$PKGCONFIG_DIR"`
 	PKGCONFIG_PKGDEP="pkg-config-${DEB_HOST_GNU_TYPE} (= ${PKGCONFIG_VERSION})"
 
+	GDB_VERSION=`_get_version "$GDB_DIR"`
+	GDB_PKGDEP="gdb-${DEB_HOST_GNU_TYPE} (= ${GDB_VERSION})"
+
 	DEPENDS="northern-cross, $BINUTILS_PKGDEP, $LKH_PKGDEP, $GCC_PKGDEP,"
-	DEPENDS="$DEPENDS $PKGCONFIG_PKGDEP, "
+	DEPENDS="$DEPENDS $PKGCONFIG_PKGDEP, $GDB_PKGDEP,"
 	if [ "$DEB_HOST_ARCH_OS" = "uclibc" ]; then
 		DEPENDS="$DEPENDS $UCLIBC_PKGDEP"
 	else
@@ -824,6 +861,7 @@ if [ "$DEB_HOST_ARCH_OS" = "linux" ]; then
 	install_glibc
 fi
 do_pkgconfig
+do_gdb
 
 make_meta_tpkg
 
