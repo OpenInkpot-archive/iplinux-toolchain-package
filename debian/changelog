@@ -1,3 +1,9 @@
+toolchain-package (0.2) unstable; urgency=low
+
+  * native-toolchain packages should also conflict with gcc, cpp, g++.
+
+ -- Dmitry Eremin-Solenikov <dbaryshkov@slind.org>  Wed, 20 Feb 2008 13:59:00 +0300
+
 toolchain-package (0.1) unstable; urgency=low
 
   * Initial release.

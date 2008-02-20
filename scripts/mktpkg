@@ -728,13 +728,13 @@ install_virtual_toolchain() {
 
 	cat > $TPKG_PKGDIR/DEBIAN/control <<EOF
 Package: $TPKG_PKGNAME
-Version: 0.1
+Version: 0.2
 Section: host-tools
 Priority: optional
 Architecture: all
 Depends: g++-${GCC_VERSION}-${DEB_HOST_GNU_TYPE} (= ${GCCPKG_VERSION}), libc6-dev-${DEB_HOST_ARCH}-cross (= ${GLIBC_VERSION})
 Source: toolchain-package
-Conflicts: gcc-${GCC_VERSION}, cpp-${GCC_VERSION}, g++-${GCC_VERSION}
+Conflicts: gcc-${GCC_VERSION}, cpp-${GCC_VERSION}, g++-${GCC_VERSION}, gcc, cpp, g++
 Provides: gcc-${GCC_VERSION}, cpp-${GCC_VERSION}, g++-${GCC_VERSION}, gcc, cpp, g++
 Installed-size: 4
 Maintainer: $TPKG_MAINTAINER
@@ -747,7 +747,7 @@ EOF
 
 	mkdir -p $TPKG_PKGDIR/usr/share/doc/$TPKG_PKGNAME
 	cat > $TPKG_PKGDIR/usr/share/doc/$TPKG_PKGNAME/changelog <<EOF
-$TPKG_PKGNAME (0.1) unstable; urgency=low
+$TPKG_PKGNAME (0.2) unstable; urgency=low
 
   * Initial release.
 
@@ -805,7 +805,7 @@ install_virtual_bs_toolchain() {
 
 	cat > $TPKG_PKGDIR/DEBIAN/control <<EOF
 Package: $TPKG_PKGNAME
-Version: 0.1
+Version: 0.2
 Section: host-tools
 Priority: optional
 Architecture: all
@@ -824,7 +824,7 @@ EOF
 
 	mkdir -p $TPKG_PKGDIR/usr/share/doc/$TPKG_PKGNAME
 	cat > $TPKG_PKGDIR/usr/share/doc/$TPKG_PKGNAME/changelog <<EOF
-$TPKG_PKGNAME (0.1) unstable; urgency=low
+$TPKG_PKGNAME (0.2) unstable; urgency=low
 
   * Initial release.
 
