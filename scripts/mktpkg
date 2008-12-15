@@ -1,90 +1,84 @@
-#!/bin/sh
+#!/bin/bash
 #
-# This mighty script is here to do the hard work of building cross-toolchains
-# for SLIND. It is capable of operating in two modes:
-#  1) building toolchain components from binary-packaged sources
-#     (like, gcc-4.1-source which installs stuff to /usr/src/XXXX);
-#     this is the default
-#  2) building from source packages; this happens if you have
-#     slind-maintainer-core package installed
+# OpenInkpot cross-toolchain builder, heavily based on SLIND cross-toolchain
+# builder.
+#
+# It is capable of operating in three modes:
+#
+#  1) building toolchain components from binary-packaged sources (like,
+#  gcc-4.1-source which installs stuff to /usr/src/XXXX); this is the default
+#
+#  2) building from git; this is enabled by option --maintainer-mode and passing
+#  --<pkg>-tag= options. In this mode mktpkg obtains sources by checking out
+#  latest source code from git, by using passed tags and by looking at binary
+#  repository and finding out proper tags for components which are not specified
+#  in command line.
+#
+#  3) building from provided source code. This is enabled by option
+#  --manual-mode and providing source code in target-dir, in directories named
+#  after components (binutils, linux-kernel-headers, gcc-${VERSION}, glibc,
+#  uclibc).
+#
+
+TP_VERSION=0.3
+SUITE=asimov
+BDBT=/usr/share/bashdb/bashdb-trace
+
+usage() {
+	echo
+	echo "Usage: $0 [--force] [--maintainer-mode] [--suite=<suite>] <target-arch> <target-dir>"
+	echo
+	echo "<target-arch> must be a Debian architecture string."
+    echo "<build-dir> must be a writable directory"
+    echo "<suite> must be a OpenInkpot suite, defaults to $SUITE."
+}
 
 if [ -n "$DEBUG" ]; then
-    # Start debugging.
-    source /usr/lib/slind-maintainer-core/bashdb-trace -q
+    [ -f $BDBT ] || (echo "Please instal bashdb"; exit 1)
+    source $BDBT -q
     _Dbg_set_trace ; : ; :
 fi
 
 if [ -n "$TRACE" ]; then
-    # Start line tracing.
-    source /usr/lib/slind-maintainer-core/bashdb-trace -q
+    [ -f $BDBT ] || (echo "Please install bashdb"; exit 1)
+    source $BDBT -q
     _Dbg_linetrace_on
 fi
 
 # configs use this variable, so to make sure..
 # Note that this is not the version, but part of package's name.
 if [ -z "$GCC_VERSION" ]; then
-	GCC_VERSION=4.1
+	GCC_VERSION=4.3
 fi
 
-# Check if the user wants to forcedly rebuild the whole toolchain
-if [ "$1" = "--force" ]; then
-	FORCED_ACTION=1
-	shift
+TEMP=$(getopt -o h --longoptions git-mode,manual-mode,binutils-tag:,lkh-tag:,gcc-tag:,glibc-tag:,uclibc-tag: -n $0 -- "$@")
+if [ $? != 0 ]; then
+    exit 1
 fi
+eval set -- "$TEMP"
 
-if [ -z "$1" ]; then
-	echo
-	echo "Usage: $0 [--force] <target_arch>"
-	echo
-	echo "<target_arch>	must be a Debian architecture string."
-	exit 1
-fi
+while true; do
+    case "$1" in
+        --help) usage; exit;;
+        --force) FORCED_ACTION=1; shift;;
+        --git-mode) GIT_MODE=1; shift;;
+        --manual-mode) MANUAL_MODE=1; shift;;
+        # lkh_TAG, binutils_TAG...
+        --*-tag) eval "${${1#--}%-tag}_TAG=$2"; shift 2;;
+        --suite) SUITE=$2; shift 2;;
+        --) shift; break;;
+        *) exit 1;;
+    esac
+done
 
-LIBUTILS=/usr/lib/slind-core/libutils.sh
-if [ -f "$LIBUTILS" ]; then
-        . $LIBUTILS
-else
-        echo "Error: can't load library $LIBUTILS"
-        exit 1
-fi
-
-load_slind_config_common
-load_slind_config_maintainer_common
-load_suites_config
-
-[ -n "$HTTP_PROXY_URL" ] && PROXYENV="http_proxy=$HTTP_PROXY_URL"
-[ -n "$FTP_PROXY_URL" ]  && PROXYENV="$PROXYENV ftp_proxy=$FTP_PROXY_URL"
-
-POOLCARE_LIB=/usr/lib/slind-core/libpoolcare.sh
-
-# Presence of pkglist directory indicates we are most likely in maintainer
-# mode, that is, we build toolchains out of source packages, and not binary
-# packages with sources.
-
-CHR_PKGLIST_DIR=`conf_get_var_relaxed $SLIND_CONFIG slindjob chr_pkglist_dir`
-if [ ! -d "$CHR_PKGLIST_DIR" ]; then
-	SRC_DIR=/usr/src
-	CHR_PKGLIST_DIR=""
-else
-	# in this case, we require a second argument
-	if [ -z "$2" ]; then
-		echo "Maintainer mode requires suite name as the second argument"
-		exit 1
-	fi
-	
-	# these are needed for libpoolcare.sh
-	DEVSUITE="$2"
-	SLIND_REPO=`conf_get_var_strict $SLIND_CONFIG maintainer-common chr_repodir`
-	REPODIR="$SLIND_REPO"
-	. $POOLCARE_LIB
-	[ -n "$SRC_DIR" ] || SRC_DIR=/tmp/tpkg
-fi
+TARGET="$1"
+SRC_DIR=`pwd`
 
 # SIGINT handler; removes cruft
 # if $NO_CLEAN is set in the environment, this function does nothing
 cleanup() {
 	if [ -z "$NO_CLEAN" ]; then
-		if [ -n "$SLIND_REPO" -a "$SRC_DIR" != "/usr/src" ]; then
+		if [ "$SRC_DIR" != "/usr/src" ]; then
 			rm -rf "$SRC_DIR"
 		fi
 	fi
@@ -96,19 +90,21 @@ LKH_DIR=$SRC_DIR/linux-kernel-headers-source
 UCLIBC_DIR=$SRC_DIR/libuclibc-source
 GLIBC_DIR=$SRC_DIR/glibc-source
 GCC_DIR=$SRC_DIR/gcc-$GCC_VERSION
-GDB_DIR=$SRC_DIR/gdb-source
-PKGCONFIG_DIR=$SRC_DIR/pkg-config-source
 
-[ -n "$BUILD_ROOTCMD" ]   || BUILD_ROOTCMD=fakeroot
+[ -n "$BUILD_ROOTCMD" ] || BUILD_ROOTCMD=fakeroot
 [ -n "$INSTALL_ROOTCMD" ] || INSTALL_ROOTCMD=sudo
 
 # Options to apt-get source
 [ -n "$APT_OPTS" ] || APT_OPTS="Acquire::Source-Symlinks=False"
 
-TARGET="$1"
-SUITE="$2"
 MYARCH=`dpkg --print-architecture`
-eval `dpkg-architecture -a$TARGET -s`
+
+ARCH_INFO=$(dpkg-architecture -a$TARGET -s)
+if [ -z "$ARCH_INFO" ]; then
+    echo "Unknown architecture: $TARGET"
+    exit 1
+fi
+eval "$ARCH_INFO"
 
 # our private stuff
 if [ -f /etc/toolchain-package/pkglists.conf ]; then
@@ -121,32 +117,53 @@ fi
 
 # get the source package
 # $1 -- package name
-# This fn will look up package's version in overrides db and
-# download its sources to $SRC_DIR. Only used in SRC_DIR!=/usr/src case.
 get_srcpkg() {
 	local _pkgname="$1"
 
-	local _version="`override_get_pkg_version $_pkgname $SUITE $TARGET`"
-	( cd $SRC_DIR; apt-get -o $APT_OPTS source $_pkgname=$_version >&2 )
+	( cd $SRC_DIR; apt-get -o $APT_OPTS source $_pkgname >&2 )
+	local _version=$(apt-cache showsrc $_pkgname | awk '/^Version:/ { print $2 }' | sed -e 's,-.*,,')
 
-	local _uver="`echo $_version | sed -e 's,-.*,,'`"
-
-	echo "$SRC_DIR/$_pkgname-$_uver"
+	echo "$SRC_DIR/$_pkgname-$_version"
 }
 
-# If we work in the (2) mode, clean up $SRC_DIR and populate
+# Clean up $SRC_DIR and populate
 # it with sources.
-if [ -d "$CHR_PKGLIST_DIR" ]; then
+if [ -n $MAINTAINER_MODE ]; then
 	cleanup
 	mkdir -p "$SRC_DIR"
 
 	BINUTILS_DIR=`get_srcpkg binutils`
 	LKH_DIR=`get_srcpkg linux-kernel-headers`
-	UCLIBC_DIR=`get_srcpkg uclibc`
-	GLIBC_DIR=`get_srcpkg glibc`
+    case "$DEB_HOST_ARCH_OS" in
+        uclibc) UCLIBC_DIR=`get_srcpkg uclibc`;;
+        linux) GLIBC_DIR=`get_srcpkg glibc`;;
+        *) echo "Unknown OS"; exit 1;;
+    esac
 	GCC_DIR=`get_srcpkg gcc-$GCC_VERSION`
-	GDB_DIR=`get_srcpkg gdb`
-	PKGCONFIG_DIR=`get_srcpkg pkg-config`
+elif [ -n $MANUAL_MODE ]; then
+    :
+else
+    cleanup
+    mkdir -p "$SRC_DIR"
+
+    PKGS="binutils-source linux-kernel-headers-source gcc-${GCC_VERSION}-source"
+    case "$DEB_HOST_ARCH_OS" in
+        uclibc) PKGS="${PKGS} uclibc-source";;
+        linux) PKGS="${PKGS} glibc-source";;
+        *) echo "Unknown OS"; exit 1;;
+    esac
+
+    $INSTALL_ROOTCMD apt-get -y --force-yes install $PKGS
+
+    for i in binutils-source linux-kernel-headers-source gcc-${GCC_VERSION}-source; do
+        cp -r "/usr/src/$i" $SRC_DIR
+    done
+
+    case "$DEB_HOST_ARCH_OS" in
+        uclibc) cp -r /usr/src/uclibc-source $SRC_DIR;;
+        linux) cp -r /usr/sr/glibc-source $SRC_DIR;;
+        *) echo "Unknown OS"; exit 1;;
+    esac
 fi
 
 # Set up ^C handler
@@ -158,21 +175,6 @@ echo "---------------------------------"
 echo "Host architecture: $MYARCH"
 echo "Target cpu: $DEB_HOST_GNU_CPU"
 echo "Target os: $DEB_HOST_GNU_SYSTEM"
-
-case "$DEB_HOST_ARCH_OS" in
-	uclibc)
-		LIBC_TARGET=uclibc
-		echo "### Compiling for $LIBC_TARGET target"
-		;;
-	linux)
-		LIBC_TARGET=gnu
-		echo "### Compiling for glibc target"
-		;;
-	*)
-		echo "Unexpected host os"
-		exit 1
-		;;
-esac
 
 # clobber dpkg-architecture environment
 _env() {
@@ -255,8 +257,10 @@ _checkinst() {
 # binutils #
 ############
 do_binutils() {
+    echo "do_binutils"
+
 	VERSION=`_get_version "$BINUTILS_DIR"`
-	PKGNAME="binutils-${DEB_HOST_GNU_CPU}-linux-${LIBC_TARGET}"
+	PKGNAME="binutils-${DEB_HOST_GNU_TYPE}"
 	
 	if [ -z "`_checkinst $PKGNAME`" -o -n "$FORCED_ACTION" ]; then
 		build_binutils
@@ -277,7 +281,7 @@ build_binutils() {
 
 install_binutils() {
 	VERSION=`_get_version "$BINUTILS_DIR"`
-	PKGNAME="binutils-${DEB_HOST_GNU_CPU}-linux-${LIBC_TARGET}_${VERSION}_${DEB_BUILD_ARCH}.deb"
+	PKGNAME="binutils-${DEB_HOST_GNU_TYPE}_${VERSION}_${DEB_BUILD_ARCH}.deb"
 	$INSTALL_ROOTCMD dpkg -i "$SRC_DIR/$PKGNAME"
 	_checkerr installing binutils
 }
@@ -286,6 +290,8 @@ install_binutils() {
 # linux-kernel-headers #
 ########################
 do_lkh() {
+    echo "do_lkh"
+
 	VERSION=`_get_version "$LKH_DIR"`
 	PKGNAME="linux-kernel-headers-${DEB_HOST_ARCH}-cross"
 	
@@ -314,19 +320,23 @@ install_lkh() {
 
 ##### c libraries #####
 do_stage1_libc() {
-	if [ "$DEB_HOST_ARCH_OS" = "uclibc" ]; then
-		do_uclibc_bs
-	else
-		do_glibc_bs
-	fi
+    echo "do_stage1_libc"
+
+    case "$DEB_HOST_ARCH_OS" in
+        uclibc) do_uclibc_bs;;
+   		linux) do_glibc_bs;;
+        *) echo "Unknown OS"; exit 1;;
+    esac
 }
 
 do_stage2_libc() {
-	if [ "$DEB_HOST_ARCH_OS" = "uclibc" ]; then
-		do_uclibc
-	else
-		do_glibc_bs2
-	fi
+    echo "do_stage2_libc"
+
+    case "$DEB_HOST_ARCH_OS" in
+        uclibc) do_uclibc;;
+        linux) do_glibc_bs2;;
+        *) echo "Unknown OS"; exit 1;;
+	esac
 }
 
 ##########
@@ -488,6 +498,8 @@ install_glibc() {
 # gcc #
 #######
 do_stage1() {
+    echo "do_stage1"
+
 	VERSION=`_get_version "$GCC_DIR"`
 	PKGPREFIX1="${GCC_VERSION}-${DEB_HOST_GNU_TYPE}"
 	PKGPREFIX2="${DEB_HOST_ARCH}-cross"
@@ -496,9 +508,7 @@ do_stage1() {
 	if [ -z "`_checkinst $PKGNAMES`" -o -n "$FORCED_ACTION" ]; then
 		do_stage1_libc
 		build_gcc_bs
-		if [ "x$MYARCH" = "x$DEB_HOST_ARCH" ]; then
-		    remove_native_toolchain
-		fi
+		remove_native_toolchain
 		install_gcc_bs
 		if [ "x$MYARCH" = "x$DEB_HOST_ARCH" ]; then
 		    install_virtual_bs_toolchain
@@ -537,12 +547,10 @@ do_stage2() {
 		do_stage2_libc
 		if [ "x$MYARCH" = "x$DEB_HOST_ARCH" ]; then
 		    remove_cross_bs_toolchain
-		    install_native_toolchain
 		fi
+		install_native_toolchain
 		build_gcc
-		if [ "x$MYARCH" = "x$DEB_HOST_ARCH" ]; then
-		    remove_native_toolchain
-		fi
+		remove_native_toolchain
 		install_gcc
 		if [ "x$MYARCH" = "x$DEB_HOST_ARCH" ]; then
 		    install_virtual_toolchain
@@ -572,71 +580,48 @@ install_gcc() {
 	_checkerr installing gcc
 }
 
-##############
-# pkg-config #
-##############
-do_pkgconfig() {
-	VERSION=`_get_version "$PKGCONFIG_DIR"`
-	PKGNAME="pkg-config-${DEB_HOST_GNU_TYPE}"
-	
-	if [ -z "`_checkinst $PKGNAME`" -o -n "$FORCED_ACTION" ]; then
-		build_pkgconfig
-		install_pkgconfig
-	else
-		echo "pkg-config ($PKGNAME) appears to be installed, skipping"
-	fi
+# -- toolchain metapackage --
+
+do_native_toolchain_pkg() {
+    if [ "x$MYARCH" = "x$DEB_HOST_ARCH" ]; then
+        NTPKG_PKGNAME="${DEB_HOST_ARCH}-native-toolchain"
+        NTPKG_PKGDIR=$SRC_DIR/$NTPKG_PKGNAME
+
+        DEPENDS="gcc, cpp, g++, gcc-${GCC_VERSION}, cpp-${GCC_VERSION}, g++-${GCC_VERSION}"
+        CONFLICTS="gcc-${GCC_VERSION}-${DEB_HOST_GNU_TYPE}, cpp-${GCC_VERSION}-${DEB_HOST_GNU_TYPE}, g++-${GCC_VERSION}-${DEB_HOST_GNU_TYPE}"
+
+        NTPKG_VERSION="$TP_VERSION"
+
+	    if [ -z "$TPKG_MAINTAINER" ]; then
+		    NTPKG_MAINTAINER="Alexander Shishkin <virtuoso@slind.org>"
+        else
+            NTPKG_MAINTAINER="$TPKG_MAINTAINER"
+        fi
+
+        mkdir -p $NTPKG_PKGDIR/DEBIAN
+        cat > $NTPKG_PKGDIR/DEBIAN/control <<EOF
+Package: $NTPKG_PKGNAME
+Version: $NTPKG_VERSION
+Section: host-tools
+Priority: optional
+Architecture: $DEB_BUILD_ARCH
+Depends: $DEPENDS
+Conflicts: $CONFLICTS
+Source: toolchain-package
+Provides: build-essential-${DEB_BUILD_ARCH}
+Installed-size: 0
+Maintainer: $NTPKG_MAINTAINER
+Description: native toolchain for $DEB_HOST_ARCH
+ This is a metapackage that will get you a complete toolchain
+ for native compilation into $DEB_HOST_ARCH target.
+EOF
+
+	    dpkg-deb -b $NTPKG_PKGDIR
+	    dpkg-name -o $SRC_DIR/${NTPKG_PKGNAME}.deb
+    fi
 }
 
-build_pkgconfig() {
-	pushd "$PKGCONFIG_DIR"
-	ARCH=${DEB_HOST_ARCH}
-	( _env; env TARGET=${ARCH} \
-		dpkg-buildpackage -uc -us -r$BUILD_ROOTCMD -b -d )
-	_checkerr building "pkg-config"
-	$BUILD_ROOTCMD debian/rules clean
-	popd
-}
-
-install_pkgconfig() {
-	VERSION=`_get_version "$PKGCONFIG_DIR"`
-	PKGNAMES="pkg-config-${DEB_HOST_GNU_TYPE}_${VERSION}_${DEB_BUILD_ARCH}.deb"
-	( cd "$SRC_DIR"; $INSTALL_ROOTCMD dpkg -i $PKGNAMES )
-	_checkerr installing "pkg-config"
-}
-
-#######
-# gdb #
-#######
-do_gdb() {
-	VERSION=`_get_version "$GDB_DIR"`
-	PKGNAME="gdb-${DEB_HOST_GNU_TYPE}"
-	
-	if [ -z "`_checkinst $PKGNAME`" -o -n "$FORCED_ACTION" ]; then
-		build_gdb
-		install_gdb
-	else
-		echo "gdb ($PKGNAME) appears to be installed, skipping"
-	fi
-}
-
-build_gdb() {
-	pushd "$GDB_DIR"
-	ARCH=${DEB_HOST_ARCH}
-	( _env; env GDB_TARGET=${ARCH} \
-		dpkg-buildpackage -uc -us -r$BUILD_ROOTCMD -b -d )
-	_checkerr building "gdb"
-	$BUILD_ROOTCMD debian/rules clean
-	popd
-}
-
-install_gdb() {
-	VERSION=`_get_version "$GDB_DIR"`
-	PKGNAMES="gdb-${DEB_HOST_GNU_TYPE}_${VERSION}_${DEB_BUILD_ARCH}.deb"
-	( cd "$SRC_DIR"; $INSTALL_ROOTCMD dpkg -i $PKGNAMES )
-	_checkerr installing "gdb"
-}
-
-make_meta_tpkg() {
+install_cross_toolchain_pkg() {
 	# render package's "Depends:" header
 	BINUTILS_VERSION=`_get_version "$BINUTILS_DIR"`
 	BINUTILS_PKGDEP="binutils-${DEB_HOST_GNU_TYPE} (= ${BINUTILS_VERSION})"
@@ -644,28 +629,29 @@ make_meta_tpkg() {
 	LKH_VERSION=`_get_version "$LKH_DIR"`
 	LKH_PKGDEP="linux-kernel-headers-${DEB_HOST_ARCH}-cross (= ${LKH_VERSION})"
 
-	UCLIBC_VERSION=`_get_version "$UCLIBC_DIR"`
-	UCLIBC_PKGDEP="libuclibc0-${DEB_HOST_ARCH}-cross (= ${UCLIBC_VERSION}), libuclibc-dev-${DEB_HOST_ARCH}-cross (= ${UCLIBC_VERSION})"
-
-	GLIBC_VERSION=`_get_version "$GLIBC_DIR"`
-	GLIBC_PKGDEP="libc6-${DEB_HOST_ARCH}-cross (= ${GLIBC_VERSION}), libc6-dev-${DEB_HOST_ARCH}-cross (= ${GLIBC_VERSION})"
-
 	GCCPKG_VERSION=`_get_version "$GCC_DIR"`
 	GCC_PKGDEP="gcc-${GCC_VERSION}-${DEB_HOST_GNU_TYPE} (= ${GCCPKG_VERSION}), cpp-${GCC_VERSION}-${DEB_HOST_GNU_TYPE} (= ${GCCPKG_VERSION}), g++-${GCC_VERSION}-${DEB_HOST_GNU_TYPE} (= ${GCCPKG_VERSION}), libgcc1-${DEB_HOST_ARCH}-cross (= ${GCCPKG_VERSION}), libstdc++6-${DEB_HOST_ARCH}-cross (= ${GCCPKG_VERSION}), libstdc++6-dev-${DEB_HOST_ARCH}-cross (= ${GCCPKG_VERSION})"
 
-	PKGCONFIG_VERSION=`_get_version "$PKGCONFIG_DIR"`
-	PKGCONFIG_PKGDEP="pkg-config-${DEB_HOST_GNU_TYPE} (= ${PKGCONFIG_VERSION})"
+    if [ "x$MYARCH" = "x$DEB_HOST_ARCH" ]; then
+        CONFLICTS="cpp-${GCC_VERSION}, gcc-${GCC_VERSION}, g++-${GCC_VERSION}, libstdc++6-dev"
+    else
+        CONFLICTS=""
+    fi
 
-	GDB_VERSION=`_get_version "$GDB_DIR"`
-	GDB_PKGDEP="gdb-${DEB_HOST_GNU_TYPE} (= ${GDB_VERSION})"
+	DEPENDS="$BINUTILS_PKGDEP, $LKH_PKGDEP, $GCC_PKGDEP,"
 
-	DEPENDS="northern-cross, $BINUTILS_PKGDEP, $LKH_PKGDEP, $GCC_PKGDEP,"
-	DEPENDS="$DEPENDS $PKGCONFIG_PKGDEP, $GDB_PKGDEP,"
-	if [ "$DEB_HOST_ARCH_OS" = "uclibc" ]; then
-		DEPENDS="$DEPENDS $UCLIBC_PKGDEP"
-	else
-		DEPENDS="$DEPENDS $GLIBC_PKGDEP"
-	fi
+    case "$DEB_HOST_ARCH_OS" in
+        uclibc)
+	        UCLIBC_VERSION=`_get_version "$UCLIBC_DIR"`
+	        UCLIBC_PKGDEP="libuclibc0-${DEB_HOST_ARCH}-cross (= ${UCLIBC_VERSION}), libuclibc-dev-${DEB_HOST_ARCH}-cross (= ${UCLIBC_VERSION})"
+		    DEPENDS="$DEPENDS $UCLIBC_PKGDEP";;
+	    linux)
+	        GLIBC_VERSION=`_get_version "$GLIBC_DIR"`
+	        GLIBC_PKGDEP="libc6-${DEB_HOST_ARCH}-cross (= ${GLIBC_VERSION}), libc6-dev-${DEB_HOST_ARCH}-cross (= ${GLIBC_VERSION})"
+		    DEPENDS="$DEPENDS $GLIBC_PKGDEP";;
+        *)
+            echo "Unknown OS"; exit 1;;
+    esac
 
 	if [ -z "$TPKG_MAINTAINER" ]; then
 		TPKG_MAINTAINER="Alexander Shishkin <virtuoso@slind.org>"
@@ -673,10 +659,18 @@ make_meta_tpkg() {
 
 	TPKG_PKGNAME="${DEB_HOST_ARCH}-cross-toolchain"
 	TPKG_PKGDIR=$SRC_DIR/$TPKG_PKGNAME
-	
-	TPKG_VERSION=`override_get_pkg_version toolchain-package $SUITE $TARGET`
-	[ -n "$TPKG_VERSION" ] || \
-		TPKG_VERSION="`dpkg -s toolchain-package | grep '^Version: ' | cut -d' ' -f2`"
+
+	TPKG_VERSION="${TP_VERSION}+binutils${BINUTILS_VERSION}+lkh${LKH_VERSION}+gcc${GCCPKG_VERSION}"
+    case "$DEB_HOST_ARCH_OS" in
+        uclibc)
+            TPKG_VERSION="${TPKG_VERSION}+uclibc${UCLIBC_VERSION}";;
+        linux)
+            TPKG_VERSION="${TPKG_VERSION}+glibc${GLIBC_VERSION}";;
+        *)
+            echo "Unknown OS"; exit 1;;
+    esac
+
+    TPKG_VERSION=$(echo $TPKG_VERSION | sed -e 's,-,+,g')
 
 	mkdir -p $TPKG_PKGDIR/DEBIAN
 
@@ -687,6 +681,7 @@ Section: host-tools
 Priority: optional
 Architecture: $DEB_BUILD_ARCH
 Depends: $DEPENDS
+Conflicts: $CONFLICTS
 Source: toolchain-package
 Provides: build-essential-${DEB_BUILD_ARCH}-cross, cross-toolchain-${DEB_HOST_ARCH}-cross, cross-toolchain-${DEB_HOST_ARCH}-dcv1
 Installed-size: 0
@@ -697,28 +692,27 @@ Description: cross-compilation toolchain for $DEB_HOST_ARCH
 EOF
 
 	dpkg-deb -b $TPKG_PKGDIR
-	$INSTALL_ROOTCMD dpkg -i $SRC_DIR/${TPKG_PKGNAME}.deb
-	dpkg-name $SRC_DIR/${TPKG_PKGNAME}.deb
+    $INSTALL_ROOTCMD dpkg -i $SRC_DIR/${TPKG_PKGNAME}.deb
+	dpkg-name -o $SRC_DIR/${TPKG_PKGNAME}.deb
 }
 
 install_virtual_toolchain() {
 	TPKG_PKGNAME="${DEB_HOST_ARCH}-toolchain"
 	TPKG_PKGDIR=$SRC_DIR/$TPKG_PKGNAME
-	# render package's "Depends:" header
-	BINUTILS_VERSION=`_get_version "$BINUTILS_DIR"`
-	BINUTILS_PKGDEP="binutils-${DEB_HOST_GNU_TYPE} (= ${BINUTILS_VERSION})"
-
-	LKH_VERSION=`_get_version "$LKH_DIR"`
-	LKH_PKGDEP="linux-kernel-headers-${DEB_HOST_ARCH}-cross (= ${LKH_VERSION})"
-
-	UCLIBC_VERSION=`_get_version "$UCLIBC_DIR"`
-	UCLIBC_PKGDEP="libuclibc0-${DEB_HOST_ARCH}-cross (= ${UCLIBC_VERSION}), libuclibc-dev-${DEB_HOST_ARCH}-cross (= ${UCLIBC_VERSION})"
-
-	GLIBC_VERSION=`_get_version "$GLIBC_DIR"`
-	GLIBC_PKGDEP="libc6-${DEB_HOST_ARCH}-cross (= ${GLIBC_VERSION}), libc6-dev-${DEB_HOST_ARCH}-cross (= ${GLIBC_VERSION})"
 
 	GCCPKG_VERSION=`_get_version "$GCC_DIR"`
-	GCC_PKGDEP="gcc-${GCC_VERSION}-${DEB_HOST_GNU_TYPE} (= ${GCCPKG_VERSION}), cpp-${GCC_VERSION}-${DEB_HOST_GNU_TYPE} (= ${GCCPKG_VERSION}), g++-${GCC_VERSION}-${DEB_HOST_GNU_TYPE} (= ${GCCPKG_VERSION}), libgcc1-${DEB_HOST_ARCH}-cross (= ${GCCPKG_VERSION}), libstdc++6-${DEB_HOST_ARCH}-cross (= ${GCCPKG_VERSION}), libstdc++6-dev-${DEB_HOST_ARCH}-cross (= ${GCCPKG_VERSION})"
+    DEPENDS="g++-${GCC_VERSION}-${DEB_HOST_GNU_TYPE} (= ${GCCPKG_VERSION}),"
+
+    case "$DEB_HOST_ARCH_OS" in
+        uclibc)
+	        UCLIBC_VERSION=`_get_version "$UCLIBC_DIR"`
+            DEPENDS="${DEPENDS} libuclibc-dev-${DEB_HOST_ARCH}-cross (= ${UCLIBC_VERSION})";;
+        linux)
+	        GLIBC_VERSION=`_get_version "$GLIBC_DIR"`
+            DEPENDS="${DEPENDS} libc6-dev-${DEB_HOST_ARCH}-cross (= ${GLIBC_VERSION})";;
+        *)
+            echo "Unknown OS"; exit 1;;
+    esac
 	
 	if [ -z "$TPKG_MAINTAINER" ]; then
 		TPKG_MAINTAINER="Alexander Shishkin <virtuoso@slind.org>"
@@ -732,7 +726,7 @@ Version: 0.2
 Section: host-tools
 Priority: optional
 Architecture: all
-Depends: g++-${GCC_VERSION}-${DEB_HOST_GNU_TYPE} (= ${GCCPKG_VERSION}), libc6-dev-${DEB_HOST_ARCH}-cross (= ${GLIBC_VERSION})
+Depends: ${DEPENDS}
 Source: toolchain-package
 Conflicts: gcc-${GCC_VERSION}, cpp-${GCC_VERSION}, g++-${GCC_VERSION}, gcc, cpp, g++
 Provides: gcc-${GCC_VERSION}, cpp-${GCC_VERSION}, g++-${GCC_VERSION}, gcc, cpp, g++
@@ -767,36 +761,25 @@ EOF
 
 	dpkg-deb -b $TPKG_PKGDIR
 	$INSTALL_ROOTCMD dpkg -i $SRC_DIR/${TPKG_PKGNAME}.deb
-	dpkg-name $SRC_DIR/${TPKG_PKGNAME}.deb
+	dpkg-name -o $SRC_DIR/${TPKG_PKGNAME}.deb
 }
 
 remove_native_toolchain() {
-	$INSTALL_ROOTCMD apt-get -y --force-yes remove gcc-$GCC_VERSION cpp-$GCC_VERSION gcc cpp
+	if [ "x$MYARCH" = "x$DEB_HOST_ARCH" ]; then
+	    $INSTALL_ROOTCMD apt-get -y --force-yes remove gcc-$GCC_VERSION cpp-$GCC_VERSION gcc cpp
+	fi
 }
 
 install_native_toolchain() {
-	$INSTALL_ROOTCMD env $PROXYENV apt-get -y --force-yes install gcc-$GCC_VERSION cpp-$GCC_VERSION g++-$GCC_VERSION gcc cpp g++
+	if [ "x$MYARCH" = "x$DEB_HOST_ARCH" ]; then
+	    $INSTALL_ROOTCMD env $PROXYENV apt-get -y --force-yes install gcc-$GCC_VERSION cpp-$GCC_VERSION g++-$GCC_VERSION gcc cpp g++
+    fi
 }
 
 install_virtual_bs_toolchain() {
 	TPKG_PKGNAME="${DEB_HOST_ARCH}-bootstrap-toolchain"
 	TPKG_PKGDIR=$SRC_DIR/$TPKG_PKGNAME
-	# render package's "Depends:" header
-	BINUTILS_VERSION=`_get_version "$BINUTILS_DIR"`
-	BINUTILS_PKGDEP="binutils-${DEB_HOST_GNU_TYPE} (= ${BINUTILS_VERSION})"
 
-	LKH_VERSION=`_get_version "$LKH_DIR"`
-	LKH_PKGDEP="linux-kernel-headers-${DEB_HOST_ARCH}-cross (= ${LKH_VERSION})"
-
-	UCLIBC_VERSION=`_get_version "$UCLIBC_DIR"`
-	UCLIBC_PKGDEP="libuclibc0-${DEB_HOST_ARCH}-cross (= ${UCLIBC_VERSION}), libuclibc-dev-${DEB_HOST_ARCH}-cross (= ${UCLIBC_VERSION})"
-
-	GLIBC_VERSION=`_get_version "$GLIBC_DIR"`
-	GLIBC_PKGDEP="libc6-${DEB_HOST_ARCH}-cross (= ${GLIBC_VERSION}), libc6-dev-${DEB_HOST_ARCH}-cross (= ${GLIBC_VERSION})"
-
-	GCCPKG_VERSION=`_get_version "$GCC_DIR"`
-	GCC_PKGDEP="gcc-${GCC_VERSION}-${DEB_HOST_GNU_TYPE} (= ${GCCPKG_VERSION}), cpp-${GCC_VERSION}-${DEB_HOST_GNU_TYPE} (= ${GCCPKG_VERSION}), libgcc1-${DEB_HOST_ARCH}-cross (= ${GCCPKG_VERSION})"
-	
 	if [ -z "$TPKG_MAINTAINER" ]; then
 		TPKG_MAINTAINER="Alexander Shishkin <virtuoso@slind.org>"
 	fi
@@ -842,7 +825,7 @@ EOF
 
 	dpkg-deb -b $TPKG_PKGDIR
 	$INSTALL_ROOTCMD dpkg -i $SRC_DIR/${TPKG_PKGNAME}.deb
-	dpkg-name $SRC_DIR/${TPKG_PKGNAME}.deb
+	dpkg-name -o $SRC_DIR/${TPKG_PKGNAME}.deb
 }
 
 remove_cross_bs_toolchain() {
@@ -851,17 +834,20 @@ remove_cross_bs_toolchain() {
 	$INSTALL_ROOTCMD apt-get -y --force-yes remove $GCC_PKG
 }
 
+do_native_toolchain_pkg
 
 do_binutils
 do_lkh
 do_stage1
 do_stage2
-if [ "$DEB_HOST_ARCH_OS" = "linux" ]; then
-	build_glibc
-	install_glibc
-fi
-do_pkgconfig
-do_gdb
+case "$DEB_HOST_ARCH_OS" in
+    uclibc)
+        ;;
+    linux)
+        build_glibc
+        install_glibc;;
+    *)
+        echo "Unknown OS";;
+esac
 
-make_meta_tpkg
-
+install_cross_toolchain_pkg
