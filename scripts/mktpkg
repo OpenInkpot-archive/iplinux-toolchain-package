@@ -112,7 +112,7 @@ if [ -f /etc/toolchain-package/pkglists.conf ]; then
 	source /etc/toolchain-package/pkglists.conf
 else
 	echo "Cannot find configuration file"
-	exit 1
+#	exit 1
 fi
 
 # get the source package
@@ -128,43 +128,41 @@ get_srcpkg() {
 
 # Clean up $SRC_DIR and populate
 # it with sources.
-if [ -n $MAINTAINER_MODE ]; then
-	cleanup
-	mkdir -p "$SRC_DIR"
-
-	BINUTILS_DIR=`get_srcpkg binutils`
-	LKH_DIR=`get_srcpkg linux-kernel-headers`
-    case "$DEB_HOST_ARCH_OS" in
-        uclibc) UCLIBC_DIR=`get_srcpkg uclibc`;;
-        linux) GLIBC_DIR=`get_srcpkg glibc`;;
-        *) echo "Unknown OS"; exit 1;;
+if [ -n $MANUAL_MODE ]; then
+    BINUTILS_DIR=$SRC_DIR/binutils-source
+    LKH_DIR=$SRC_DIR/linux-2.6-2.6.26
+    case "$DEB_HOST_GNU_SYSTEM" in
+	*uclibc*) UCLIBC_DIR=$SRC_DIR/libuclibc-source;;
+	*gnu*) GLIBC_DIR=$SRC_DIR/libc-source;;
+	*) echo "Unknown OS"; exit 1;;
     esac
-	GCC_DIR=`get_srcpkg gcc-$GCC_VERSION`
-elif [ -n $MANUAL_MODE ]; then
-    :
+    GCC_DIR=$SRC_DIR/gcc-$GCC_VERSION
 else
-    cleanup
-    mkdir -p "$SRC_DIR"
+    echo "Get packages from Git"; exit 1;
+fi	    
+#else
+#    cleanup
+#    mkdir -p "$SRC_DIR"
 
-    PKGS="binutils-source linux-kernel-headers-source gcc-${GCC_VERSION}-source"
-    case "$DEB_HOST_ARCH_OS" in
-        uclibc) PKGS="${PKGS} uclibc-source";;
-        linux) PKGS="${PKGS} glibc-source";;
-        *) echo "Unknown OS"; exit 1;;
-    esac
+#    PKGS="binutils-source linux-kernel-headers-source gcc-${GCC_VERSION}-source"
+#    case "$DEB_HOST_ARCH_OS" in
+#        uclibc) PKGS="${PKGS} uclibc-source";;
+#        linux) PKGS="${PKGS} glibc-source";;
+#        *) echo "Unknown OS"; exit 1;;
+#    esac
 
-    $INSTALL_ROOTCMD apt-get -y --force-yes install $PKGS
+#    $INSTALL_ROOTCMD apt-get -y --force-yes install $PKGS
 
-    for i in binutils-source linux-kernel-headers-source gcc-${GCC_VERSION}-source; do
-        cp -r "/usr/src/$i" $SRC_DIR
-    done
+#    for i in binutils-source linux-kernel-headers-source gcc-${GCC_VERSION}-source; do
+#        cp -r "/usr/src/$i" $SRC_DIR
+#    done
 
-    case "$DEB_HOST_ARCH_OS" in
-        uclibc) cp -r /usr/src/uclibc-source $SRC_DIR;;
-        linux) cp -r /usr/sr/glibc-source $SRC_DIR;;
-        *) echo "Unknown OS"; exit 1;;
-    esac
-fi
+#    case "$DEB_HOST_ARCH_OS" in
+#        uclibc) cp -r /usr/src/uclibc-source $SRC_DIR;;
+#        linux) cp -r /usr/sr/glibc-source $SRC_DIR;;
+#        *) echo "Unknown OS"; exit 1;;
+#    esac
+#fi
 
 # Set up ^C handler
 trap cleanup INT
@@ -274,7 +272,7 @@ build_binutils() {
 	pushd "$BINUTILS_DIR"
 	_ARCH=$DEB_HOST_ARCH
 	( _env; env TARGET="$_ARCH" \
-	  $BUILD_ROOTCMD debian/rules binary-source binary-cross clean-cross )
+	  $BUILD_ROOTCMD debian/rules binary-cross clean-cross )
 	_checkerr building binutils
 	popd
 }
@@ -293,19 +291,31 @@ do_lkh() {
     echo "do_lkh"
 
 	VERSION=`_get_version "$LKH_DIR"`
-	PKGNAME="linux-kernel-headers-${DEB_HOST_ARCH}-cross"
+	PKGNAME="linux-libc-dev_${DEB_HOST_ARCH}-cross_${VERSION}_all"
 	
 	if [ -z "`_checkinst $PKGNAME`" -o -n "$FORCED_ACTION" ]; then
 		build_lkh
 		install_lkh
 	else
-		echo "linux-kernel-headers ($PKGNAME) appears to be installed, skipping"
+		echo "linux-libc-dev ($PKGNAME) appears to be installed, skipping"
 	fi
 }
 
 build_lkh() {
 	pushd "$LKH_DIR"
-	dpkg-buildpackage -uc -us -r$BUILD_ROOTCMD -a${DEB_HOST_ARCH} -d
+	SOURCEVERSION=`_get_version "$LKH_DIR"`
+	VERSION=$(echo $SOURCEVERSION |sed "s/-.*//")
+#	dpkg-buildpackage -uc -us -r$BUILD_ROOTCMD -a${DEB_HOST_ARCH} -d
+	case "$DEB_HOST_ARCH" in
+	    *arm*)
+		LIBC_ARCH='arm';;
+	    *i[3456]86*)
+		LIBC_ARCH='x86';;
+	esac
+	prepare_source_command="$BUILD_ROOTCMD make -f debian/rules source MAJOR='2.6' UPSTREAMVERSION='2.6.26'  VERSION='$VERSION' SOURCEVERSION='$SOURCEVERSION' LIBC_DEV_ARCH='$LIBC_ARCH' ABINAME='-1' ARCH='$DEB_HOST_ARCH'"
+	echo $DEB_HOST_ARCH $DEB_BUILD_ARCH
+	`echo $prepare_source_command`
+	$BUILD_ROOTCMD make -f debian/rules.real install-libc-dev_$DEB_HOST_ARCH MAJOR='2.6' UPSTREAMVERSION='2.6.26'  VERSION=$SOURCEVERSION SOURCEVERSION=$SOURCEVERSION LIBC_DEV_ARCH=$LIBC_DEV_ARCH ABINAME='-1' ARCH=$DEB_HOST_ARCH
 	_checkerr building linux-kernel-headers
 	$BUILD_ROOTCMD debian/rules clean
 	popd
@@ -313,7 +323,7 @@ build_lkh() {
 
 install_lkh() {
 	VERSION=`_get_version "$LKH_DIR"`
-	PKGNAME="linux-kernel-headers_${VERSION}_${DEB_HOST_ARCH}.deb"
+	PKGNAME="linux-libc-dev_${VERSION}_${DEB_HOST_ARCH}.deb"
 	_crossinst $PKGNAME
 	_checkerr installing linux-kernel-headers
 }
