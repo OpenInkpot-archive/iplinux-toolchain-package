@@ -130,7 +130,7 @@ get_srcpkg() {
 # it with sources.
 if [ -n $MANUAL_MODE ]; then
     BINUTILS_DIR=$SRC_DIR/binutils-source
-    LKH_DIR=$SRC_DIR/linux-2.6-2.6.26
+    LKH_DIR=$SRC_DIR/linux-2.6
     case "$DEB_HOST_GNU_SYSTEM" in
 	*uclibc*) UCLIBC_DIR=$SRC_DIR/libuclibc-source;;
 	*gnu*) GLIBC_DIR=$SRC_DIR/libc-source;;
@@ -165,7 +165,7 @@ fi
 #fi
 
 # Set up ^C handler
-trap cleanup INT
+#trap cleanup INT
 
 # banner
 echo "Building cross toolchain packages"
@@ -219,8 +219,8 @@ _checkerr() {
 _crossinst() {
 	while [ -n "$1" ]; do
 		local _pkgfile="$1"
-		( cd "$SRC_DIR"; dpkg-cross -a${DEB_HOST_ARCH} -b "$_pkgfile" )
-		( cd "$SRC_DIR"; $INSTALL_ROOTCMD dpkg-cross -a${DEB_HOST_ARCH} \
+		( cd "$SRC_DIR"; dpkg-cross -a ${DEB_HOST_ARCH} -b "$_pkgfile" )
+		( cd "$SRC_DIR"; $INSTALL_ROOTCMD dpkg-cross -a ${DEB_HOST_ARCH} \
 			-i "$_pkgfile" )
 		shift
 	done
@@ -291,7 +291,7 @@ do_lkh() {
     echo "do_lkh"
 
 	VERSION=`_get_version "$LKH_DIR"`
-	PKGNAME="linux-libc-dev_${DEB_HOST_ARCH}-cross_${VERSION}_all"
+	PKGNAME="linux-libc-dev-${DEB_HOST_ARCH}-cross"
 	
 	if [ -z "`_checkinst $PKGNAME`" -o -n "$FORCED_ACTION" ]; then
 		build_lkh
@@ -305,17 +305,7 @@ build_lkh() {
 	pushd "$LKH_DIR"
 	SOURCEVERSION=`_get_version "$LKH_DIR"`
 	VERSION=$(echo $SOURCEVERSION |sed "s/-.*//")
-#	dpkg-buildpackage -uc -us -r$BUILD_ROOTCMD -a${DEB_HOST_ARCH} -d
-	case "$DEB_HOST_ARCH" in
-	    *arm*)
-		LIBC_ARCH='arm';;
-	    *i[3456]86*)
-		LIBC_ARCH='x86';;
-	esac
-	prepare_source_command="$BUILD_ROOTCMD make -f debian/rules source MAJOR='2.6' UPSTREAMVERSION='2.6.26'  VERSION='$VERSION' SOURCEVERSION='$SOURCEVERSION' LIBC_DEV_ARCH='$LIBC_ARCH' ABINAME='-1' ARCH='$DEB_HOST_ARCH'"
-	echo $DEB_HOST_ARCH $DEB_BUILD_ARCH
-	`echo $prepare_source_command`
-	$BUILD_ROOTCMD make -f debian/rules.real install-libc-dev_$DEB_HOST_ARCH MAJOR='2.6' UPSTREAMVERSION='2.6.26'  VERSION=$SOURCEVERSION SOURCEVERSION=$SOURCEVERSION LIBC_DEV_ARCH=$LIBC_DEV_ARCH ABINAME='-1' ARCH=$DEB_HOST_ARCH
+	dpkg-buildpackage -uc -us -r$BUILD_ROOTCMD -a${DEB_HOST_ARCH} -d -b
 	_checkerr building linux-kernel-headers
 	$BUILD_ROOTCMD debian/rules clean
 	popd
@@ -332,9 +322,9 @@ install_lkh() {
 do_stage1_libc() {
     echo "do_stage1_libc"
 
-    case "$DEB_HOST_ARCH_OS" in
-        uclibc) do_uclibc_bs;;
-   		linux) do_glibc_bs;;
+    case "$DEB_HOST_GNU_SYSTEM" in
+        *uclibc*) do_uclibc_bs;;
+   	*gnu*) do_glibc_bs;;
         *) echo "Unknown OS"; exit 1;;
     esac
 }
@@ -342,9 +332,9 @@ do_stage1_libc() {
 do_stage2_libc() {
     echo "do_stage2_libc"
 
-    case "$DEB_HOST_ARCH_OS" in
-        uclibc) do_uclibc;;
-        linux) do_glibc_bs2;;
+    case "$DEB_HOST_GNU_SYSTEM" in
+        *uclibc*) do_uclibc;;
+        *gnu*) do_glibc_bs2;;
         *) echo "Unknown OS"; exit 1;;
 	esac
 }
@@ -354,10 +344,9 @@ do_stage2_libc() {
 ##########
 do_uclibc_bs() {
 	VERSION=`_get_version "$UCLIBC_DIR"`
-	PKGNAME1="libuclibc-dev-headers-${DEB_HOST_ARCH}-cross"
-	PKGNAME2="libuclibc0-${DEB_HOST_ARCH}-cross libuclibc-dev-${DEB_HOST_ARCH}-cross"
+	PKGNAME1="libuclibc-bootstrap_${VERSION}_${DEB_HOST_ARCH}"
 
-	if [ -z "`_checkinst $PKGNAME2`" -o -n "$FORCED_ACTION" ]; then
+	if [ -z "`_checkinst $PKGNAME1`" -o -n "$FORCED_ACTION" ]; then
 		if [ -z "`_checkinst $PKGNAME1`" -o -n "$FORCED_ACTION" ]; then
 			build_uclibc_bs
 			install_uclibc_bs
@@ -365,7 +354,7 @@ do_uclibc_bs() {
 			echo "uclibc ($PKGNAME1) appears to be installed, skipping"
 		fi
 	else
-		echo "uclibc ($PKGNAME2) appears to be installed, skipping"
+		echo "uclibc ($PKGNAME1) appears to be installed, skipping"
 	fi
 }
 
@@ -381,7 +370,7 @@ build_uclibc_bs() {
 
 install_uclibc_bs() {
 	VERSION=`_get_version "$UCLIBC_DIR"`
-	PKGNAME="libuclibc-dev-headers_${VERSION}_${DEB_HOST_ARCH}.deb"
+	PKGNAME="libuclibc-bootstrap_${VERSION}_${DEB_HOST_ARCH}.deb"
 	_crossinst $PKGNAME
 	_checkerr installing "bootstrap uclibc"
 }
@@ -399,7 +388,7 @@ do_uclibc() {
 }
 
 build_uclibc() {
-	$INSTALL_ROOTCMD dpkg -P libuclibc-dev-headers-${DEB_HOST_ARCH}-cross
+	$INSTALL_ROOTCMD dpkg -P libuclibc-bootstrap-${DEB_HOST_ARCH}-cross
 	pushd "$UCLIBC_DIR"
 	( dpkg-buildpackage -uc -us -r$BUILD_ROOTCMD -a${DEB_HOST_ARCH} -b )
 	_checkerr building uclibc
@@ -531,7 +520,7 @@ do_stage1() {
 build_gcc_bs() {
 	pushd "$GCC_DIR"
 	ARCH=${DEB_HOST_ARCH}
-	( _env; env GCC_TARGET=${ARCH} DEB_CROSS_BOOTSTRAP=yes \
+	( _env; env GCC_TARGET=${ARCH} DEB_CROSS=yes DEB_CROSS_BOOTSTRAP=yes \
 		dpkg-buildpackage -uc -us -r$BUILD_ROOTCMD -b -d )
 	_checkerr building "bootstrap gcc"
 	$BUILD_ROOTCMD debian/rules clean
@@ -541,9 +530,10 @@ build_gcc_bs() {
 install_gcc_bs() {
 	VERSION=`_get_version "$GCC_DIR"`
 	PKGPREFIX1="${GCC_VERSION}-${DEB_HOST_GNU_TYPE}_${VERSION}_${DEB_BUILD_ARCH}.deb"
-	PKGPREFIX2="${DEB_HOST_ARCH}-cross_${VERSION}_all.deb"
-	PKGNAMES="gcc-${PKGPREFIX1} cpp-${PKGPREFIX1} libgcc1-${PKGPREFIX2}"
-	( cd "$SRC_DIR"; $INSTALL_ROOTCMD dpkg -i $PKGNAMES )
+	PKGPREFIX2="${GCC_VERSION}-${DEB_HOST_GNU_TYPE}-base_${VERSION}_${DEB_BUILD_ARCH}.deb"
+	PKGPREFIX3="${DEB_HOST_ARCH}-cross_${VERSION}_all.deb"
+	PKGNAMES="gcc-${PKGPREFIX1} gcc-${PKGPREFIX2} cpp-${PKGPREFIX1}"
+	( cd "$SRC_DIR"; $INSTALL_ROOTCMD dpkg -i --force-depends $PKGNAMES )
 	_checkerr installing "bootstrap gcc"
 }
 
