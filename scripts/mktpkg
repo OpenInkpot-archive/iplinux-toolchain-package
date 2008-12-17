@@ -217,13 +217,14 @@ _checkerr() {
 # and perform cross-installation
 # Takes paths to binary packages to be processed as arguments.
 _crossinst() {
-	while [ -n "$1" ]; do
-		local _pkgfile="$1"
-		( cd "$SRC_DIR"; dpkg-cross -a ${DEB_HOST_ARCH} -b "$_pkgfile" )
+#	while [ -n "$1" ]; do
+		local _pkgfile="$@"
+		echo "Dpkg-crossing following packages: $1"
+		( cd "$SRC_DIR"; dpkg-cross -a ${DEB_HOST_ARCH} -b ${_pkgfile} )
 		( cd "$SRC_DIR"; $INSTALL_ROOTCMD dpkg-cross -a ${DEB_HOST_ARCH} \
-			-i "$_pkgfile" )
+			-i ${_pkgfile} )
 		shift
-	done
+#	done
 }
 
 # check if a package is installed
@@ -344,7 +345,7 @@ do_stage2_libc() {
 ##########
 do_uclibc_bs() {
 	VERSION=`_get_version "$UCLIBC_DIR"`
-	PKGNAME1="libuclibc-bootstrap_${VERSION}_${DEB_HOST_ARCH}"
+	PKGNAME1="libuclibc-bootstrap-${DEB_HOST_ARCH}-cross"
 
 	if [ -z "`_checkinst $PKGNAME1`" -o -n "$FORCED_ACTION" ]; then
 		if [ -z "`_checkinst $PKGNAME1`" -o -n "$FORCED_ACTION" ]; then
@@ -399,7 +400,8 @@ build_uclibc() {
 install_uclibc() {
 	VERSION=`_get_version "$UCLIBC_DIR"`
 	PKGPREFIX="${VERSION}_${DEB_HOST_ARCH}.deb"
-	PKGNAMES="libuclibc0_${PKGPREFIX} libuclibc-dev_${PKGPREFIX}"
+	PKGNAMES="libuclibc-dev_${PKGPREFIX} libuclibc-pic_${PKGPREFIX} ldso-uclibc_${PKGPREFIX} libc-uclibc_${PKGPREFIX} libm-uclibc_${PKGPREFIX} libpthread-uclibc_${PKGPREFIX} libdl-uclibc_${PKGPREFIX} librt-uclibc_${PKGPREFIX} libresolv-uclibc_${PKGPREFIX} libcrypt-uclibc_${PKGPREFIX} libutil-uclibc_${PKGPREFIX} libnsl-uclibc_${PKGPREFIX}"
+	echo "Installing Uclibc packages: $PKGNAMES"
 	_crossinst $PKGNAMES
 	_checkerr installing uclibc
 }
@@ -575,7 +577,7 @@ install_gcc() {
 	VERSION=`_get_version "$GCC_DIR"`
 	PKGPREFIX1="${GCC_VERSION}-${DEB_HOST_GNU_TYPE}_${VERSION}_${DEB_BUILD_ARCH}.deb"
 	PKGPREFIX2="${DEB_HOST_ARCH}-cross_${VERSION}_all.deb"
-	PKGNAMES="gcc-${PKGPREFIX1} cpp-${PKGPREFIX1} g++-${PKGPREFIX1} libgcc1-${PKGPREFIX2} libstdc++6-${PKGPREFIX2} libstdc++6-dev-${PKGPREFIX2}"
+	PKGNAMES="gcc-${PKGPREFIX1} cpp-${PKGPREFIX1} g++-${PKGPREFIX1} libgcc1-${PKGPREFIX2} libstdc++6-${PKGPREFIX2} libstdc++6-${GCC_VERSION}-dev-${PKGPREFIX2} libstdc++6-${GCC_VERSION}-pic-${PKGPREFIX2}"
 	( cd "$SRC_DIR"; $INSTALL_ROOTCMD dpkg -i $PKGNAMES )
 	_checkerr installing gcc
 }
@@ -829,7 +831,7 @@ EOF
 }
 
 remove_cross_bs_toolchain() {
-	GCC_PKG="gcc-${GCC_VERSION}-${DEB_HOST_GNU_TYPE} cpp-${GCC_VERSION}-${DEB_HOST_GNU_TYPE} libgcc1-${DEB_HOST_ARCH}-cross ${DEB_HOST_ARCH}-bootstrap-toolchain"
+	GCC_PKG="gcc-${GCC_VERSION}-${DEB_HOST_GNU_TYPE} gcc-${GCC_VERSION}-${DEB_HOST_GNU_TYPE}-base  cpp-${GCC_VERSION}-${DEB_HOST_GNU_TYPE} libgcc1-${DEB_HOST_ARCH}-cross ${DEB_HOST_ARCH}-bootstrap-toolchain"
 
 	$INSTALL_ROOTCMD apt-get -y --force-yes remove $GCC_PKG
 }
@@ -840,10 +842,10 @@ do_binutils
 do_lkh
 do_stage1
 do_stage2
-case "$DEB_HOST_ARCH_OS" in
-    uclibc)
+case "$DEB_HOST_GNU_SYSTEM" in
+    *uclibc*)
         ;;
-    linux)
+    *gnu*)
         build_glibc
         install_glibc;;
     *)
