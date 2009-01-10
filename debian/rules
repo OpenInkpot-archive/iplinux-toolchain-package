@@ -1,50 +1,34 @@
 #!/usr/bin/make -f
 
-pkg_tpkg := toolchain-package
-pkg_maint := toolchain-package-maintainer
-dir_tpkg := $(patsubst %,debian/%,$(pkg_tpkg))
-dir_maint := $(patsubst %,debian/%,$(pkg_maint))
-pkgs := $(pkg_tpkg) $(pkg_maint)
-dirs := $(dir_tpkg) $(dir_maint)
-
-configure:
-	dh_testdir
-
 clean:
 	dh_testdir
+	dh_prep
 	$(MAKE) clean
+	rm -f install-stamp
 
-	rm -f debian/substvars build-stamp install-stamp debian/files
-	rm -rf $(dirs)
+build:
 
-build: build-stamp configure
-build-stamp:
-	#$(MAKE)
-	touch $@
-
-install: install-stamp build
-install-stamp:
+install: build
 	dh_testdir
 	dh_testroot
 
 	dh_clean -k
 	dh_installdirs
-	touch $@
+
+	install -m755 mktpkg $(CURDIR)/debian/toolchain-package/usr/bin/mktpkg
 
 binary-arch: install
+
+binary-indep: install
 	dh_testdir
 	dh_testroot
 
-	for d in $(dirs); do \
-		$(MAKE) install DESTDIR=$$d; \
-	done
 	dh_installchangelogs
-	
 	dh_installdeb
 	dh_gencontrol
 	dh_md5sums
 	dh_builddeb
-	
-binary: binary-arch
 
-.PHONY: configure clean build install binary-arch binary
+binary: binary-arch binary-indep
+
+.PHONY: clean build install binary-arch binary

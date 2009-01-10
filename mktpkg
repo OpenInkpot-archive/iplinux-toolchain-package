@@ -1,23 +1,19 @@
 #!/bin/bash
 #
-# OpenInkpot cross-toolchain builder, heavily based on SLIND cross-toolchain
+# Inkpump cross-toolchain builder, heavily based on SLIND cross-toolchain
 # builder.
 #
-# It is capable of operating in three modes:
+# It is capable of operating in two modes:
 #
-#  1) building toolchain components from binary-packaged sources (like,
-#  gcc-4.1-source which installs stuff to /usr/src/XXXX); this is the default
-#
-#  2) building from git; this is enabled by option --maintainer-mode and passing
+#  1) building from git; this is default mode, and can be adjusted by passing
 #  --<pkg>-tag= options. In this mode mktpkg obtains sources by checking out
-#  latest source code from git, by using passed tags and by looking at binary
-#  repository and finding out proper tags for components which are not specified
+#  source code from git, using passed tags and by looking at binary repository
+#  and finding out corresponding source for components which are not specified
 #  in command line.
 #
-#  3) building from provided source code. This is enabled by option
+#  2) building from provided source code. This is enabled by option
 #  --manual-mode and providing source code in target-dir, in directories named
-#  after components (binutils, linux-kernel-headers, gcc-${VERSION}, glibc,
-#  uclibc).
+#  after components (binutils, linux-libc-dev, gcc-${VERSION}, glibc, uclibc).
 #
 
 TP_VERSION=0.3
@@ -26,7 +22,7 @@ BDBT=/usr/share/bashdb/bashdb-trace
 
 usage() {
 	echo
-	echo "Usage: $0 [--force] [--maintainer-mode] [--suite=<suite>] <target-arch> <target-dir>"
+	echo "Usage: $0 [--force] [--manual-mode] [--suite=<suite>] <target-arch>"
 	echo
 	echo "<target-arch> must be a Debian architecture string."
     echo "<build-dir> must be a writable directory"
@@ -51,7 +47,7 @@ if [ -z "$GCC_VERSION" ]; then
 	GCC_VERSION=4.3
 fi
 
-TEMP=$(getopt -o h --longoptions git-mode,manual-mode,binutils-tag:,lkh-tag:,gcc-tag:,glibc-tag:,uclibc-tag: -n $0 -- "$@")
+TEMP=$(getopt -o h --longoptions force,manual-mode,suite:,binutils-tag:,lld-tag:,gcc-tag:,glibc-tag:,uclibc-tag: -n $0 -- "$@")
 if [ $? != 0 ]; then
     exit 1
 fi
@@ -61,9 +57,8 @@ while true; do
     case "$1" in
         --help) usage; exit;;
         --force) FORCED_ACTION=1; shift;;
-        --git-mode) GIT_MODE=1; shift;;
         --manual-mode) MANUAL_MODE=1; shift;;
-        # lkh_TAG, binutils_TAG...
+        # lld_TAG, binutils_TAG...
         --*-tag) eval "${${1#--}%-tag}_TAG=$2"; shift 2;;
         --suite) SUITE=$2; shift 2;;
         --) shift; break;;
@@ -72,6 +67,11 @@ while true; do
 done
 
 TARGET="$1"
+if [ -z "$TARGET" ]; then
+    usage
+    exit 1
+fi
+
 SRC_DIR=`pwd`
 
 # SIGINT handler; removes cruft
@@ -85,10 +85,10 @@ cleanup() {
 }
 
 # Paths to sources; this is relevant for SRC_DIR=/usr/src case
-BINUTILS_DIR=$SRC_DIR/binutils-source
-LKH_DIR=$SRC_DIR/linux-kernel-headers-source
-UCLIBC_DIR=$SRC_DIR/libuclibc-source
-GLIBC_DIR=$SRC_DIR/glibc-source
+BINUTILS_DIR=$SRC_DIR/binutils
+LLD_DIR=$SRC_DIR/linux-libc-dev
+UCLIBC_DIR=$SRC_DIR/uclibc
+GLIBC_DIR=$SRC_DIR/glibc
 GCC_DIR=$SRC_DIR/gcc-$GCC_VERSION
 
 [ -n "$BUILD_ROOTCMD" ] || BUILD_ROOTCMD=fakeroot
@@ -106,14 +106,16 @@ if [ -z "$ARCH_INFO" ]; then
 fi
 eval "$ARCH_INFO"
 
-# our private stuff
-if [ -f /etc/toolchain-package/pkglists.conf ]; then
-	source /etc/toolchain-package/config
-	source /etc/toolchain-package/pkglists.conf
-else
-	echo "Cannot find configuration file"
-#	exit 1
-fi
+case "$GCC_VERSION" in
+	3.3)
+		GXX_SONAME=5;;
+	3.4|4.0|4.1|4.2|4.3)
+		GXX_SONAME=6;;
+    *)
+        echo "Unknown GCC_VERSION: $GCC_VERSION"
+        exit 1;;
+esac
+PKGLIST_GCC="gcc-${GCC_VERSION}-${DEB_HOST_GNU_TYPE} cpp-${GCC_VERSION}-${DEB_HOST_GNU_TYPE} libgcc1-${DEB_HOST_ARCH}-cross g++-${GCC_VERSION}-${DEB_HOST_GNU_TYPE} libstdc++${GXX_SONAME}-${DEB_HOST_ARCH}-cross libstdc++${GXX_SONAME}-dev-${DEB_HOST_ARCH}-cross"
 
 # get the source package
 # $1 -- package name
@@ -126,46 +128,9 @@ get_srcpkg() {
 	echo "$SRC_DIR/$_pkgname-$_version"
 }
 
-# Clean up $SRC_DIR and populate
-# it with sources.
-if [ -n $MANUAL_MODE ]; then
-    BINUTILS_DIR=$SRC_DIR/binutils-source
-    LKH_DIR=$SRC_DIR/linux-2.6
-    case "$DEB_HOST_GNU_SYSTEM" in
-	*uclibc*) UCLIBC_DIR=$SRC_DIR/libuclibc-source;;
-	*gnu*) GLIBC_DIR=$SRC_DIR/libc-source;;
-	*) echo "Unknown OS"; exit 1;;
-    esac
-    GCC_DIR=$SRC_DIR/gcc-$GCC_VERSION
-else
+if [ -z $MANUAL_MODE ]; then
     echo "Get packages from Git"; exit 1;
-fi	    
-#else
-#    cleanup
-#    mkdir -p "$SRC_DIR"
-
-#    PKGS="binutils-source linux-kernel-headers-source gcc-${GCC_VERSION}-source"
-#    case "$DEB_HOST_ARCH_OS" in
-#        uclibc) PKGS="${PKGS} uclibc-source";;
-#        linux) PKGS="${PKGS} glibc-source";;
-#        *) echo "Unknown OS"; exit 1;;
-#    esac
-
-#    $INSTALL_ROOTCMD apt-get -y --force-yes install $PKGS
-
-#    for i in binutils-source linux-kernel-headers-source gcc-${GCC_VERSION}-source; do
-#        cp -r "/usr/src/$i" $SRC_DIR
-#    done
-
-#    case "$DEB_HOST_ARCH_OS" in
-#        uclibc) cp -r /usr/src/uclibc-source $SRC_DIR;;
-#        linux) cp -r /usr/sr/glibc-source $SRC_DIR;;
-#        *) echo "Unknown OS"; exit 1;;
-#    esac
-#fi
-
-# Set up ^C handler
-#trap cleanup INT
+fi
 
 # banner
 echo "Building cross toolchain packages"
@@ -286,37 +251,37 @@ install_binutils() {
 }
 
 ########################
-# linux-kernel-headers #
+# linux-libc-dev #
 ########################
-do_lkh() {
-    echo "do_lkh"
+do_lld() {
+    echo "do_lld"
 
-	VERSION=`_get_version "$LKH_DIR"`
+	VERSION=`_get_version "$LLD_DIR"`
 	PKGNAME="linux-libc-dev-${DEB_HOST_ARCH}-cross"
 	
 	if [ -z "`_checkinst $PKGNAME`" -o -n "$FORCED_ACTION" ]; then
-		build_lkh
-		install_lkh
+		build_lld
+		install_lld
 	else
 		echo "linux-libc-dev ($PKGNAME) appears to be installed, skipping"
 	fi
 }
 
-build_lkh() {
-	pushd "$LKH_DIR"
-	SOURCEVERSION=`_get_version "$LKH_DIR"`
+build_lld() {
+	pushd "$LLD_DIR"
+	SOURCEVERSION=`_get_version "$LLD_DIR"`
 	VERSION=$(echo $SOURCEVERSION |sed "s/-.*//")
 	dpkg-buildpackage -uc -us -r$BUILD_ROOTCMD -a${DEB_HOST_ARCH} -d -b
-	_checkerr building linux-kernel-headers
+	_checkerr building linux-libc-dev
 	$BUILD_ROOTCMD debian/rules clean
 	popd
 }
 
-install_lkh() {
-	VERSION=`_get_version "$LKH_DIR"`
+install_lld() {
+	VERSION=`_get_version "$LLD_DIR"`
 	PKGNAME="linux-libc-dev_${VERSION}_${DEB_HOST_ARCH}.deb"
 	_crossinst $PKGNAME
-	_checkerr installing linux-kernel-headers
+	_checkerr installing linux-libc-dev
 }
 
 ##### c libraries #####
@@ -400,7 +365,7 @@ build_uclibc() {
 install_uclibc() {
 	VERSION=`_get_version "$UCLIBC_DIR"`
 	PKGPREFIX="${VERSION}_${DEB_HOST_ARCH}.deb"
-	PKGNAMES="libuclibc-dev_${PKGPREFIX} libuclibc-pic_${PKGPREFIX} ldso-uclibc_${PKGPREFIX} libc-uclibc_${PKGPREFIX} libm-uclibc_${PKGPREFIX} libpthread-uclibc_${PKGPREFIX} libdl-uclibc_${PKGPREFIX} librt-uclibc_${PKGPREFIX} libresolv-uclibc_${PKGPREFIX} libcrypt-uclibc_${PKGPREFIX} libutil-uclibc_${PKGPREFIX} libnsl-uclibc_${PKGPREFIX}"
+	PKGNAMES="libuclibc-dev_${PKGPREFIX} ldso-uclibc_${PKGPREFIX} libc-uclibc_${PKGPREFIX} libm-uclibc_${PKGPREFIX} libpthread-uclibc_${PKGPREFIX} libdl-uclibc_${PKGPREFIX} librt-uclibc_${PKGPREFIX} libresolv-uclibc_${PKGPREFIX} libcrypt-uclibc_${PKGPREFIX} libutil-uclibc_${PKGPREFIX} libnsl-uclibc_${PKGPREFIX}"
 	echo "Installing Uclibc packages: $PKGNAMES"
 	_crossinst $PKGNAMES
 	_checkerr installing uclibc
@@ -504,7 +469,7 @@ do_stage1() {
 	VERSION=`_get_version "$GCC_DIR"`
 	PKGPREFIX1="${GCC_VERSION}-${DEB_HOST_GNU_TYPE}"
 	PKGPREFIX2="${DEB_HOST_ARCH}-cross"
-	PKGNAMES="gcc-${PKGPREFIX1} cpp-${PKGPREFIX1} libgcc1-${PKGPREFIX2}"
+	PKGNAMES="gcc-${PKGPREFIX1} gcc-${PKGPREFIX1}-base cpp-${PKGPREFIX1} libgcc1-${PKGPREFIX2}"
 
 	if [ -z "`_checkinst $PKGNAMES`" -o -n "$FORCED_ACTION" ]; then
 		do_stage1_libc
@@ -534,7 +499,7 @@ install_gcc_bs() {
 	PKGPREFIX1="${GCC_VERSION}-${DEB_HOST_GNU_TYPE}_${VERSION}_${DEB_BUILD_ARCH}.deb"
 	PKGPREFIX2="${GCC_VERSION}-${DEB_HOST_GNU_TYPE}-base_${VERSION}_${DEB_BUILD_ARCH}.deb"
 	PKGPREFIX3="${DEB_HOST_ARCH}-cross_${VERSION}_all.deb"
-	PKGNAMES="gcc-${PKGPREFIX1} gcc-${PKGPREFIX2} cpp-${PKGPREFIX1}"
+	PKGNAMES="gcc-${PKGPREFIX1} gcc-${PKGPREFIX2} cpp-${PKGPREFIX1} libgcc1-${PKGPREFIX3}"
 	( cd "$SRC_DIR"; $INSTALL_ROOTCMD dpkg -i --force-depends $PKGNAMES )
 	_checkerr installing "bootstrap gcc"
 }
@@ -543,7 +508,7 @@ do_stage2() {
 	VERSION=`_get_version "$GCC_DIR"`
 	PKGPREFIX1="${GCC_VERSION}-${DEB_HOST_GNU_TYPE}"
 	PKGPREFIX2="${DEB_HOST_ARCH}-cross"
-	PKGNAMES="gcc-${PKGPREFIX1} cpp-${PKGPREFIX1} g++-${PKGPREFIX1} libgcc1-${PKGPREFIX2} libstdc++6-${PKGPREFIX2} libstdc++6-dev-${PKGPREFIX2}"
+	PKGNAMES="gcc-${PKGPREFIX1} gcc-${PKGPREFIX1}-base cpp-${PKGPREFIX1} g++-${PKGPREFIX1} libgcc1-${PKGPREFIX2} libstdc++6-${PKGPREFIX2} libstdc++6-${GCC_VERSION}-dev-${PKGPREFIX2}"
 
 	if [ -z "`_checkinst $PKGNAMES`" -o -n "$FORCED_ACTION" ]; then
 		do_stage2_libc
@@ -566,7 +531,7 @@ build_gcc() {
 	$INSTALL_ROOTCMD dpkg -P ${PKGLIST_GCC}
 	pushd "$GCC_DIR"
 	ARCH=${DEB_HOST_ARCH}
-	( _env; env GCC_TARGET=${ARCH} DEB_TARGET_LIBCXX=yes \
+	( _env; env GCC_TARGET=${ARCH} DEB_CROSS=yes DEB_TARGET_LIBCXX=yes \
 		dpkg-buildpackage -uc -us -r$BUILD_ROOTCMD -d )
 	_checkerr building gcc
 	$BUILD_ROOTCMD debian/rules clean
@@ -576,63 +541,25 @@ build_gcc() {
 install_gcc() {
 	VERSION=`_get_version "$GCC_DIR"`
 	PKGPREFIX1="${GCC_VERSION}-${DEB_HOST_GNU_TYPE}_${VERSION}_${DEB_BUILD_ARCH}.deb"
+	PKGPREFIX0="${GCC_VERSION}-${DEB_HOST_GNU_TYPE}-base_${VERSION}_${DEB_BUILD_ARCH}.deb"
 	PKGPREFIX2="${DEB_HOST_ARCH}-cross_${VERSION}_all.deb"
-	PKGNAMES="gcc-${PKGPREFIX1} cpp-${PKGPREFIX1} g++-${PKGPREFIX1} libgcc1-${PKGPREFIX2} libstdc++6-${PKGPREFIX2} libstdc++6-${GCC_VERSION}-dev-${PKGPREFIX2} libstdc++6-${GCC_VERSION}-pic-${PKGPREFIX2}"
+	PKGNAMES="gcc-${PKGPREFIX1} gcc-${PKGPREFIX0} cpp-${PKGPREFIX1} g++-${PKGPREFIX1} libgcc1-${PKGPREFIX2} libstdc++6-${PKGPREFIX2} libstdc++6-${GCC_VERSION}-dev-${PKGPREFIX2}"
 	( cd "$SRC_DIR"; $INSTALL_ROOTCMD dpkg -i $PKGNAMES )
 	_checkerr installing gcc
 }
 
 # -- toolchain metapackage --
 
-do_native_toolchain_pkg() {
-    if [ "x$MYARCH" = "x$DEB_HOST_ARCH" ]; then
-        NTPKG_PKGNAME="${DEB_HOST_ARCH}-native-toolchain"
-        NTPKG_PKGDIR=$SRC_DIR/$NTPKG_PKGNAME
-
-        DEPENDS="gcc, cpp, g++, gcc-${GCC_VERSION}, cpp-${GCC_VERSION}, g++-${GCC_VERSION}"
-        CONFLICTS="gcc-${GCC_VERSION}-${DEB_HOST_GNU_TYPE}, cpp-${GCC_VERSION}-${DEB_HOST_GNU_TYPE}, g++-${GCC_VERSION}-${DEB_HOST_GNU_TYPE}"
-
-        NTPKG_VERSION="$TP_VERSION"
-
-	    if [ -z "$TPKG_MAINTAINER" ]; then
-		    NTPKG_MAINTAINER="Alexander Shishkin <virtuoso@slind.org>"
-        else
-            NTPKG_MAINTAINER="$TPKG_MAINTAINER"
-        fi
-
-        mkdir -p $NTPKG_PKGDIR/DEBIAN
-        cat > $NTPKG_PKGDIR/DEBIAN/control <<EOF
-Package: $NTPKG_PKGNAME
-Version: $NTPKG_VERSION
-Section: host-tools
-Priority: optional
-Architecture: $DEB_BUILD_ARCH
-Depends: $DEPENDS
-Conflicts: $CONFLICTS
-Source: toolchain-package
-Provides: build-essential-${DEB_BUILD_ARCH}
-Installed-size: 0
-Maintainer: $NTPKG_MAINTAINER
-Description: native toolchain for $DEB_HOST_ARCH
- This is a metapackage that will get you a complete toolchain
- for native compilation into $DEB_HOST_ARCH target.
-EOF
-
-	    dpkg-deb -b $NTPKG_PKGDIR
-	    dpkg-name -o $SRC_DIR/${NTPKG_PKGNAME}.deb
-    fi
-}
-
 install_cross_toolchain_pkg() {
 	# render package's "Depends:" header
 	BINUTILS_VERSION=`_get_version "$BINUTILS_DIR"`
 	BINUTILS_PKGDEP="binutils-${DEB_HOST_GNU_TYPE} (= ${BINUTILS_VERSION})"
 
-	LKH_VERSION=`_get_version "$LKH_DIR"`
-	LKH_PKGDEP="linux-kernel-headers-${DEB_HOST_ARCH}-cross (= ${LKH_VERSION})"
+	LLD_VERSION=`_get_version "$LLD_DIR"`
+	LLD_PKGDEP="linux-libc-dev-${DEB_HOST_ARCH}-cross (= ${LLD_VERSION})"
 
 	GCCPKG_VERSION=`_get_version "$GCC_DIR"`
-	GCC_PKGDEP="gcc-${GCC_VERSION}-${DEB_HOST_GNU_TYPE} (= ${GCCPKG_VERSION}), cpp-${GCC_VERSION}-${DEB_HOST_GNU_TYPE} (= ${GCCPKG_VERSION}), g++-${GCC_VERSION}-${DEB_HOST_GNU_TYPE} (= ${GCCPKG_VERSION}), libgcc1-${DEB_HOST_ARCH}-cross (= ${GCCPKG_VERSION}), libstdc++6-${DEB_HOST_ARCH}-cross (= ${GCCPKG_VERSION}), libstdc++6-dev-${DEB_HOST_ARCH}-cross (= ${GCCPKG_VERSION})"
+	GCC_PKGDEP="gcc-${GCC_VERSION}-${DEB_HOST_GNU_TYPE} (= ${GCCPKG_VERSION}), gcc-${GCC_VERSION}-${DEB_HOST_GNU_TYPE}-base (= ${GCCPKG_VERSION}), cpp-${GCC_VERSION}-${DEB_HOST_GNU_TYPE} (= ${GCCPKG_VERSION}), g++-${GCC_VERSION}-${DEB_HOST_GNU_TYPE} (= ${GCCPKG_VERSION}), libgcc1-${DEB_HOST_ARCH}-cross (= ${GCCPKG_VERSION}), libstdc++6-${DEB_HOST_ARCH}-cross (= ${GCCPKG_VERSION}), libstdc++6-${GCC_VERSION}-dev-${DEB_HOST_ARCH}-cross (= ${GCCPKG_VERSION})"
 
     if [ "x$MYARCH" = "x$DEB_HOST_ARCH" ]; then
         CONFLICTS="cpp-${GCC_VERSION}, gcc-${GCC_VERSION}, g++-${GCC_VERSION}, libstdc++6-dev"
@@ -640,7 +567,7 @@ install_cross_toolchain_pkg() {
         CONFLICTS=""
     fi
 
-	DEPENDS="$BINUTILS_PKGDEP, $LKH_PKGDEP, $GCC_PKGDEP,"
+	DEPENDS="$BINUTILS_PKGDEP, $LLD_PKGDEP, $GCC_PKGDEP,"
 
     case "$DEB_HOST_ARCH_OS" in
         uclibc)
@@ -662,7 +589,7 @@ install_cross_toolchain_pkg() {
 	TPKG_PKGNAME="${DEB_HOST_ARCH}-cross-toolchain"
 	TPKG_PKGDIR=$SRC_DIR/$TPKG_PKGNAME
 
-	TPKG_VERSION="${TP_VERSION}+binutils${BINUTILS_VERSION}+lkh${LKH_VERSION}+gcc${GCCPKG_VERSION}"
+	TPKG_VERSION="${TP_VERSION}+binutils${BINUTILS_VERSION}+linux-libc-dev${LLD_VERSION}+gcc${GCCPKG_VERSION}"
     case "$DEB_HOST_ARCH_OS" in
         uclibc)
             TPKG_VERSION="${TPKG_VERSION}+uclibc${UCLIBC_VERSION}";;
@@ -836,10 +763,8 @@ remove_cross_bs_toolchain() {
 	$INSTALL_ROOTCMD apt-get -y --force-yes remove $GCC_PKG
 }
 
-do_native_toolchain_pkg
-
 do_binutils
-do_lkh
+do_lld
 do_stage1
 do_stage2
 case "$DEB_HOST_GNU_SYSTEM" in
@@ -852,4 +777,5 @@ case "$DEB_HOST_GNU_SYSTEM" in
         echo "Unknown OS";;
 esac
 
+do_cross_toolchain_pkg
 install_cross_toolchain_pkg
