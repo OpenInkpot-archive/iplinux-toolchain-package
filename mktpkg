@@ -715,6 +715,7 @@ install_virtual_bs_toolchain() {
 	
 	mkdir -p $TPKG_PKGDIR/DEBIAN
 
+	GCCPKG_VERSION=`_get_version "$GCC_DIR"`
 	cat > $TPKG_PKGDIR/DEBIAN/control <<EOF
 Package: $TPKG_PKGNAME
 Version: 0.2
