@@ -3,8 +3,7 @@
 clean:
 	dh_testdir
 	dh_prep
-	$(MAKE) clean
-	rm -f install-stamp
+	rm -f *-stamp
 
 build:
 
