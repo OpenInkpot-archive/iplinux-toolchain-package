@@ -106,6 +106,8 @@ if [ -z "$ARCH_INFO" ]; then
 fi
 eval "$ARCH_INFO"
 
+DEBPKG_HOST_GNU_TYPE=$(echo ${DEB_HOST_GNU_TYPE} | tr _ -)
+
 case "$GCC_VERSION" in
 	3.3)
 		GXX_SONAME=5;;
@@ -115,7 +117,7 @@ case "$GCC_VERSION" in
         echo "Unknown GCC_VERSION: $GCC_VERSION"
         exit 1;;
 esac
-PKGLIST_GCC="gcc-${GCC_VERSION}-${DEB_HOST_GNU_TYPE} cpp-${GCC_VERSION}-${DEB_HOST_GNU_TYPE} libgcc1-${DEB_HOST_ARCH}-cross g++-${GCC_VERSION}-${DEB_HOST_GNU_TYPE} libstdc++${GXX_SONAME}-${DEB_HOST_ARCH}-cross libstdc++${GXX_SONAME}-dev-${DEB_HOST_ARCH}-cross"
+PKGLIST_GCC="gcc-${GCC_VERSION}-${DEBPKG_HOST_GNU_TYPE} cpp-${GCC_VERSION}-${DEBPKG_HOST_GNU_TYPE} libgcc1-${DEB_HOST_ARCH}-cross g++-${GCC_VERSION}-${DEBPKG_HOST_GNU_TYPE} libstdc++${GXX_SONAME}-${DEB_HOST_ARCH}-cross libstdc++${GXX_SONAME}-dev-${DEB_HOST_ARCH}-cross"
 
 # get the source package
 # $1 -- package name
@@ -224,7 +226,7 @@ do_binutils() {
     echo "do_binutils"
 
 	VERSION=`_get_version "$BINUTILS_DIR"`
-	PKGNAME="binutils-${DEB_HOST_GNU_TYPE}"
+	PKGNAME="binutils-${DEBPKG_HOST_GNU_TYPE}"
 	
 	if [ -z "`_checkinst $PKGNAME`" -o -n "$FORCED_ACTION" ]; then
 		build_binutils
@@ -245,7 +247,7 @@ build_binutils() {
 
 install_binutils() {
 	VERSION=`_get_version "$BINUTILS_DIR"`
-	PKGNAME="binutils-${DEB_HOST_GNU_TYPE}_${VERSION}_${DEB_BUILD_ARCH}.deb"
+	PKGNAME="binutils-${DEBPKG_HOST_GNU_TYPE}_${VERSION}_${DEB_BUILD_ARCH}.deb"
 	$INSTALL_ROOTCMD dpkg -i "$SRC_DIR/$PKGNAME"
 	_checkerr installing binutils
 }
@@ -467,7 +469,7 @@ do_stage1() {
     echo "do_stage1"
 
 	VERSION=`_get_version "$GCC_DIR"`
-	PKGPREFIX1="${GCC_VERSION}-${DEB_HOST_GNU_TYPE}"
+	PKGPREFIX1="${GCC_VERSION}-${DEBPKG_HOST_GNU_TYPE}"
 	PKGPREFIX2="${DEB_HOST_ARCH}-cross"
 	PKGNAMES="gcc-${PKGPREFIX1} gcc-${PKGPREFIX1}-base cpp-${PKGPREFIX1} libgcc1-${PKGPREFIX2}"
 
@@ -496,8 +498,8 @@ build_gcc_bs() {
 
 install_gcc_bs() {
 	VERSION=`_get_version "$GCC_DIR"`
-	PKGPREFIX1="${GCC_VERSION}-${DEB_HOST_GNU_TYPE}_${VERSION}_${DEB_BUILD_ARCH}.deb"
-	PKGPREFIX2="${GCC_VERSION}-${DEB_HOST_GNU_TYPE}-base_${VERSION}_${DEB_BUILD_ARCH}.deb"
+	PKGPREFIX1="${GCC_VERSION}-${DEBPKG_HOST_GNU_TYPE}_${VERSION}_${DEB_BUILD_ARCH}.deb"
+	PKGPREFIX2="${GCC_VERSION}-${DEBPKG_HOST_GNU_TYPE}-base_${VERSION}_${DEB_BUILD_ARCH}.deb"
 	PKGPREFIX3="${DEB_HOST_ARCH}-cross_${VERSION}_all.deb"
 	PKGNAMES="gcc-${PKGPREFIX1} gcc-${PKGPREFIX2} cpp-${PKGPREFIX1} libgcc1-${PKGPREFIX3}"
 	( cd "$SRC_DIR"; $INSTALL_ROOTCMD dpkg -i --force-depends $PKGNAMES )
@@ -506,7 +508,7 @@ install_gcc_bs() {
 
 do_stage2() {
 	VERSION=`_get_version "$GCC_DIR"`
-	PKGPREFIX1="${GCC_VERSION}-${DEB_HOST_GNU_TYPE}"
+	PKGPREFIX1="${GCC_VERSION}-${DEBPKG_HOST_GNU_TYPE}"
 	PKGPREFIX2="${DEB_HOST_ARCH}-cross"
 	PKGNAMES="gcc-${PKGPREFIX1} gcc-${PKGPREFIX1}-base cpp-${PKGPREFIX1} g++-${PKGPREFIX1} libgcc1-${PKGPREFIX2} libstdc++6-${PKGPREFIX2} libstdc++6-${GCC_VERSION}-dev-${PKGPREFIX2}"
 
@@ -540,8 +542,8 @@ build_gcc() {
 
 install_gcc() {
 	VERSION=`_get_version "$GCC_DIR"`
-	PKGPREFIX1="${GCC_VERSION}-${DEB_HOST_GNU_TYPE}_${VERSION}_${DEB_BUILD_ARCH}.deb"
-	PKGPREFIX0="${GCC_VERSION}-${DEB_HOST_GNU_TYPE}-base_${VERSION}_${DEB_BUILD_ARCH}.deb"
+	PKGPREFIX1="${GCC_VERSION}-${DEBPKG_HOST_GNU_TYPE}_${VERSION}_${DEB_BUILD_ARCH}.deb"
+	PKGPREFIX0="${GCC_VERSION}-${DEBPKG_HOST_GNU_TYPE}-base_${VERSION}_${DEB_BUILD_ARCH}.deb"
 	PKGPREFIX2="${DEB_HOST_ARCH}-cross_${VERSION}_all.deb"
 	PKGNAMES="gcc-${PKGPREFIX1} gcc-${PKGPREFIX0} cpp-${PKGPREFIX1} g++-${PKGPREFIX1} libgcc1-${PKGPREFIX2} libstdc++6-${PKGPREFIX2} libstdc++6-${GCC_VERSION}-dev-${PKGPREFIX2}"
 	( cd "$SRC_DIR"; $INSTALL_ROOTCMD dpkg -i $PKGNAMES )
@@ -553,13 +555,13 @@ install_gcc() {
 install_cross_toolchain_pkg() {
 	# render package's "Depends:" header
 	BINUTILS_VERSION=`_get_version "$BINUTILS_DIR"`
-	BINUTILS_PKGDEP="binutils-${DEB_HOST_GNU_TYPE} (= ${BINUTILS_VERSION})"
+	BINUTILS_PKGDEP="binutils-${DEBPKG_HOST_GNU_TYPE} (= ${BINUTILS_VERSION})"
 
 	LLD_VERSION=`_get_version "$LLD_DIR"`
 	LLD_PKGDEP="linux-libc-dev-${DEB_HOST_ARCH}-cross (= ${LLD_VERSION})"
 
 	GCCPKG_VERSION=`_get_version "$GCC_DIR"`
-	GCC_PKGDEP="gcc-${GCC_VERSION}-${DEB_HOST_GNU_TYPE} (= ${GCCPKG_VERSION}), gcc-${GCC_VERSION}-${DEB_HOST_GNU_TYPE}-base (= ${GCCPKG_VERSION}), cpp-${GCC_VERSION}-${DEB_HOST_GNU_TYPE} (= ${GCCPKG_VERSION}), g++-${GCC_VERSION}-${DEB_HOST_GNU_TYPE} (= ${GCCPKG_VERSION}), libgcc1-${DEB_HOST_ARCH}-cross (= ${GCCPKG_VERSION}), libstdc++6-${DEB_HOST_ARCH}-cross (= ${GCCPKG_VERSION}), libstdc++6-${GCC_VERSION}-dev-${DEB_HOST_ARCH}-cross (= ${GCCPKG_VERSION})"
+	GCC_PKGDEP="gcc-${GCC_VERSION}-${DEBPKG_HOST_GNU_TYPE} (= ${GCCPKG_VERSION}), gcc-${GCC_VERSION}-${DEBPKG_HOST_GNU_TYPE}-base (= ${GCCPKG_VERSION}), cpp-${GCC_VERSION}-${DEBPKG_HOST_GNU_TYPE} (= ${GCCPKG_VERSION}), g++-${GCC_VERSION}-${DEBPKG_HOST_GNU_TYPE} (= ${GCCPKG_VERSION}), libgcc1-${DEB_HOST_ARCH}-cross (= ${GCCPKG_VERSION}), libstdc++6-${DEB_HOST_ARCH}-cross (= ${GCCPKG_VERSION}), libstdc++6-${GCC_VERSION}-dev-${DEB_HOST_ARCH}-cross (= ${GCCPKG_VERSION})"
 
     if [ "x$MYARCH" = "x$DEB_HOST_ARCH" ]; then
         CONFLICTS="cpp-${GCC_VERSION}, gcc-${GCC_VERSION}, g++-${GCC_VERSION}, libstdc++6-dev"
@@ -630,7 +632,7 @@ install_virtual_toolchain() {
 	TPKG_PKGDIR=$SRC_DIR/$TPKG_PKGNAME
 
 	GCCPKG_VERSION=`_get_version "$GCC_DIR"`
-    DEPENDS="g++-${GCC_VERSION}-${DEB_HOST_GNU_TYPE} (= ${GCCPKG_VERSION}),"
+    DEPENDS="g++-${GCC_VERSION}-${DEBPKG_HOST_GNU_TYPE} (= ${GCCPKG_VERSION}),"
 
     case "$DEB_HOST_ARCH_OS" in
         uclibc)
@@ -722,7 +724,7 @@ Version: 0.2
 Section: host-tools
 Priority: optional
 Architecture: all
-Depends: gcc-${GCC_VERSION}-${DEB_HOST_GNU_TYPE} (= ${GCCPKG_VERSION}), cpp-${GCC_VERSION}-${DEB_HOST_GNU_TYPE} (= ${GCCPKG_VERSION})
+Depends: gcc-${GCC_VERSION}-${DEBPKG_HOST_GNU_TYPE} (= ${GCCPKG_VERSION}), cpp-${GCC_VERSION}-${DEBPKG_HOST_GNU_TYPE} (= ${GCCPKG_VERSION})
 Source: toolchain-package
 Conflicts: gcc-${GCC_VERSION}, cpp-${GCC_VERSION}
 Provides: gcc-${GCC_VERSION}, cpp-${GCC_VERSION}, gcc, cpp
@@ -759,7 +761,7 @@ EOF
 }
 
 remove_cross_bs_toolchain() {
-	GCC_PKG="gcc-${GCC_VERSION}-${DEB_HOST_GNU_TYPE} gcc-${GCC_VERSION}-${DEB_HOST_GNU_TYPE}-base  cpp-${GCC_VERSION}-${DEB_HOST_GNU_TYPE} libgcc1-${DEB_HOST_ARCH}-cross ${DEB_HOST_ARCH}-bootstrap-toolchain"
+	GCC_PKG="gcc-${GCC_VERSION}-${DEBPKG_HOST_GNU_TYPE} gcc-${GCC_VERSION}-${DEBPKG_HOST_GNU_TYPE}-base  cpp-${GCC_VERSION}-${DEBPKG_HOST_GNU_TYPE} libgcc1-${DEB_HOST_ARCH}-cross ${DEB_HOST_ARCH}-bootstrap-toolchain"
 
 	$INSTALL_ROOTCMD apt-get -y --force-yes remove $GCC_PKG
 }
