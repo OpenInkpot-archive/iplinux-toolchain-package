@@ -41,12 +41,6 @@ if [ -n "$TRACE" ]; then
     _Dbg_linetrace_on
 fi
 
-# configs use this variable, so to make sure..
-# Note that this is not the version, but part of package's name.
-if [ -z "$GCC_VERSION" ]; then
-	GCC_VERSION=4.3
-fi
-
 TEMP=$(getopt -o h --longoptions force,manual-mode,suite:,binutils-tag:,lld-tag:,gcc-tag:,glibc-tag:,uclibc-tag: -n $0 -- "$@")
 if [ $? != 0 ]; then
     exit 1
@@ -84,7 +78,14 @@ cleanup() {
 	fi
 }
 
-# Paths to sources; this is relevant for SRC_DIR=/usr/src case
+#
+# Current gcc version (part of package name)
+#
+GCC_VERSION=4.3
+
+#
+# -- Paths to sources --
+#
 BINUTILS_DIR=$SRC_DIR/binutils
 LLD_DIR=$SRC_DIR/linux-libc-dev
 UCLIBC_DIR=$SRC_DIR/uclibc
