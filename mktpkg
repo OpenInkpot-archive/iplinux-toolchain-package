@@ -224,14 +224,9 @@ _checkerr() {
 # and perform cross-installation
 # Takes paths to binary packages to be processed as arguments.
 _crossinst() {
-#	while [ -n "$1" ]; do
-		local _pkgfile="$@"
-		echo "Dpkg-crossing following packages: $1"
-		( cd "$SRC_DIR"; dpkg-cross -a ${DEB_HOST_ARCH} -b ${_pkgfile} )
-		( cd "$SRC_DIR"; $INSTALL_ROOTCMD dpkg-cross -a ${DEB_HOST_ARCH} \
-			-i ${_pkgfile} )
-		shift
-#	done
+	echo "Dpkg-crossing following packages: $@"
+	( cd "$SRC_DIR"; dpkg-cross -A -a ${DEB_HOST_ARCH} -b "$@" )
+	( cd "$SRC_DIR"; $INSTALL_ROOTCMD dpkg-cross -A -a ${DEB_HOST_ARCH} -i "$@" )
 }
 
 # check if a package is installed
