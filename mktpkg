@@ -106,6 +106,50 @@ eval "$ARCH_INFO"
 
 DEBPKG_HOST_GNU_TYPE=$(echo ${DEB_HOST_GNU_TYPE} | tr _ -)
 
+#
+
+if [ -z $MANUAL_MODE ]; then
+    echo "Get packages from Git"; exit 1;
+fi
+
+# get source package's version from its debian/changelog
+# $1 -- path to unpacked sources
+_get_version() {
+	local _dir="$1"
+	cd "$_dir"; dpkg-parsechangelog|awk '/Version:/ {print $2}'
+}
+
+# -- Package names & versions --
+
+BINUTILS_V=$(_get_version "$BINUTILS_DIR")
+BINUTILS_PKGNAME="binutils-${DEBPKG_HOST_GNU_TYPE}"
+BINUTILS_DEBPKG="${BINUTILS_PKGNAME}_${BINUTILS_V}_${DEB_BUILD_ARCH}.deb"
+
+LLD_V=$(_get_version "$LLD_DIR")
+LLD_CROSSPKGNAME="linux-libc-dev-${DEB_HOST_ARCH}-cross"
+LLD_DEBPKG="linux-libc-dev_${LLD_V}_${DEB_HOST_ARCH}.deb"
+
+case "$DEB_HOST_GNU_SYSTEM" in
+    *uclibc*)
+        UCLIBC_V=$(_get_version "$UCLIBC_DIR")
+        ;;
+    *)
+        GLIBC_V=$(_get_version "$GLIBC_DIR")
+
+        # Stage 1
+        GLIBC_DEV_HEADERS_CROSSPKGNAME="libc6-dev-headers-${DEB_HOST_ARCH}-cross"
+        GLIBC_DEV_HEADERS_DEBPKG="libc6-dev-headers_${GLIBC_V}_${DEB_HOST_ARCH}.deb"
+
+        # Stage 2&3
+        GLIBC_CROSSPKGNAME="libc6-${DEB_HOST_ARCH}-cross"
+        GLIBC_DEBPKG="libc6_${GLIBC_V}_${DEB_HOST_ARCH}.deb"
+
+        GLIBC_DEV_CROSSPKGNAME="libc6-dev-${DEB_HOST_ARCH}-cross"
+        GLIBC_DEV_DEBPKG="libc6-dev_${GLIBC_V}_${DEB_HOST_ARCH}.deb"
+        ;;
+esac
+
+GCC_V=$(_get_version "$GCC_DIR")
 case "$GCC_VERSION" in
 	3.3)
 		GXX_SONAME=5;;
@@ -115,22 +159,29 @@ case "$GCC_VERSION" in
         echo "Unknown GCC_VERSION: $GCC_VERSION"
         exit 1;;
 esac
-PKGLIST_GCC="gcc-${GCC_VERSION}-${DEBPKG_HOST_GNU_TYPE} cpp-${GCC_VERSION}-${DEBPKG_HOST_GNU_TYPE} libgcc1-${DEB_HOST_ARCH}-cross g++-${GCC_VERSION}-${DEBPKG_HOST_GNU_TYPE} libstdc++${GXX_SONAME}-${DEB_HOST_ARCH}-cross libstdc++${GXX_SONAME}-dev-${DEB_HOST_ARCH}-cross"
 
-# get the source package
-# $1 -- package name
-get_srcpkg() {
-	local _pkgname="$1"
+GCC_PKGNAME="gcc-${GCC_VERSION}-${DEBPKG_HOST_GNU_TYPE}"
+GCC_DEBPKG="${GCC_PKGNAME}_${GCC_V}_${DEB_BUILD_ARCH}.deb"
 
-	( cd $SRC_DIR; apt-get -o $APT_OPTS source $_pkgname >&2 )
-	local _version=$(apt-cache showsrc $_pkgname | awk '/^Version:/ { print $2 }' | sed -e 's,-.*,,')
+GCC_BASE_PKGNAME="gcc-${GCC_VERSION}-${DEBPKG_HOST_GNU_TYPE}-base"
+GCC_BASE_DEBPKG="${GCC_BASE_PKGNAME}_${GCC_V}_${DEB_BUILD_ARCH}.deb"
 
-	echo "$SRC_DIR/$_pkgname-$_version"
-}
+CPP_PKGNAME="cpp-${GCC_VERSION}-${DEBPKG_HOST_GNU_TYPE}"
+CPP_DEBPKG="${CPP_PKGNAME}_${GCC_V}_${DEB_BUILD_ARCH}.deb"
 
-if [ -z $MANUAL_MODE ]; then
-    echo "Get packages from Git"; exit 1;
-fi
+GXX_PKGNAME="g++-${GCC_VERSION}-${DEBPKG_HOST_GNU_TYPE}"
+GXX_DEBPKG="${GXX_PKGNAME}_${GCC_V}_${DEB_BUILD_ARCH}.deb"
+
+LIBGCC_CROSSPKGNAME="libgcc1-${DEB_HOST_ARCH}-cross"
+LIBGCC_DEBPKG="libgcc1_${GCC_V}_${DEB_HOST_ARCH}.deb"
+
+LIBSTDCXX_CROSSNAME="libstdc++${GXX_SONAME}-${DEB_HOST_ARCH}-cross"
+LIBSTDCXX_DEBPKG="libstdc++${GXX_SONAME}_${GCC_V}_${DEB_HOST_ARCH}.deb"
+
+LIBSTDCXX_DEV_CROSSNAME="libstdc++${GXX_SONAME}-${GCC_VERSION}-dev-${DEB_HOST_ARCH}-cross"
+LIBSTDCXX_DEV_DEBPKG="libstdc++${GXX_SONAME}-${GCC_VERSION}-dev_${GCC_V}_${DEB_HOST_ARCH}.deb"
+
+# -- --
 
 # banner
 echo "Building cross toolchain packages"
@@ -153,13 +204,6 @@ _env() {
 	unset DEB_HOST_GNU_CPU
 	unset DEB_HOST_GNU_SYSTEM
 	unset DEB_HOST_GNU_TYPE
-}
-
-# get source package's version from its debian/changelog
-# $1 -- path to unpacked sources
-_get_version() {
-	local _dir="$1"
-	cd "$_dir"; dpkg-parsechangelog|awk '/Version:/ {print $2}'
 }
 
 # check for error condition, scream and die if needed
@@ -223,30 +267,25 @@ _checkinst() {
 do_binutils() {
     echo "do_binutils"
 
-	VERSION=`_get_version "$BINUTILS_DIR"`
-	PKGNAME="binutils-${DEBPKG_HOST_GNU_TYPE}"
-	
-	if [ -z "`_checkinst $PKGNAME`" -o -n "$FORCED_ACTION" ]; then
+	if [ -z "`_checkinst $BINUTILS_PKGNAME`" -o -n "$FORCED_ACTION" ]; then
 		build_binutils
 		install_binutils
 	else
-		echo "binutils ($PKGNAME) appears to be installed, skipping"
+		echo "binutils ($BINUTILS_PKGNAME) appears to be installed, skipping"
 	fi
 }
 
 build_binutils() {
 	pushd "$BINUTILS_DIR"
-	_ARCH=$DEB_HOST_ARCH
-	( _env; env TARGET="$_ARCH" \
-	  $BUILD_ROOTCMD debian/rules binary-cross clean-cross )
+    ARCH=$DEB_HOST_ARCH
+	( _env; env TARGET=$ARCH \
+	  $BUILD_ROOTCMD debian/rules clean-cross binary-cross )
 	_checkerr building binutils
 	popd
 }
 
 install_binutils() {
-	VERSION=`_get_version "$BINUTILS_DIR"`
-	PKGNAME="binutils-${DEBPKG_HOST_GNU_TYPE}_${VERSION}_${DEB_BUILD_ARCH}.deb"
-	$INSTALL_ROOTCMD dpkg -i "$SRC_DIR/$PKGNAME"
+	$INSTALL_ROOTCMD dpkg -i "$SRC_DIR/$BINUTILS_DEBPKG"
 	_checkerr installing binutils
 }
 
@@ -256,21 +295,16 @@ install_binutils() {
 do_lld() {
     echo "do_lld"
 
-	VERSION=`_get_version "$LLD_DIR"`
-	PKGNAME="linux-libc-dev-${DEB_HOST_ARCH}-cross"
-	
-	if [ -z "`_checkinst $PKGNAME`" -o -n "$FORCED_ACTION" ]; then
+	if [ -z "`_checkinst $LLD_CROSSPKGNAME`" -o -n "$FORCED_ACTION" ]; then
 		build_lld
 		install_lld
 	else
-		echo "linux-libc-dev ($PKGNAME) appears to be installed, skipping"
+		echo "linux-libc-dev ($LLD_CROSSPKGNAME) appears to be installed, skipping"
 	fi
 }
 
 build_lld() {
 	pushd "$LLD_DIR"
-	SOURCEVERSION=`_get_version "$LLD_DIR"`
-	VERSION=$(echo $SOURCEVERSION |sed "s/-.*//")
 	dpkg-buildpackage -uc -us -r$BUILD_ROOTCMD -a${DEB_HOST_ARCH} -d -b
 	_checkerr building linux-libc-dev
 	$BUILD_ROOTCMD debian/rules clean
@@ -278,9 +312,7 @@ build_lld() {
 }
 
 install_lld() {
-	VERSION=`_get_version "$LLD_DIR"`
-	PKGNAME="linux-libc-dev_${VERSION}_${DEB_HOST_ARCH}.deb"
-	_crossinst $PKGNAME
+	_crossinst $LLD_DEBPKG
 	_checkerr installing linux-libc-dev
 }
 
@@ -309,7 +341,6 @@ do_stage2_libc() {
 # uclibc #
 ##########
 do_uclibc_bs() {
-	VERSION=`_get_version "$UCLIBC_DIR"`
 	PKGNAME1="libuclibc-bootstrap-${DEB_HOST_ARCH}-cross"
 
 	if [ -z "`_checkinst $PKGNAME1`" -o -n "$FORCED_ACTION" ]; then
@@ -335,14 +366,12 @@ build_uclibc_bs() {
 }
 
 install_uclibc_bs() {
-	VERSION=`_get_version "$UCLIBC_DIR"`
-	PKGNAME="libuclibc-bootstrap_${VERSION}_${DEB_HOST_ARCH}.deb"
+	PKGNAME="libuclibc-bootstrap_${UCLIBC_V}_${DEB_HOST_ARCH}.deb"
 	_crossinst $PKGNAME
 	_checkerr installing "bootstrap uclibc"
 }
 
 do_uclibc() {
-	VERSION=`_get_version "$UCLIBC_DIR"`
 	PKGNAME="libuclibc0-${DEB_HOST_ARCH}-cross libuclibc-dev-${DEB_HOST_ARCH}-cross"
 
 	if [ -z "`_checkinst $PKGNAME`" -o -n "$FORCED_ACTION" ]; then
@@ -363,8 +392,7 @@ build_uclibc() {
 }
 
 install_uclibc() {
-	VERSION=`_get_version "$UCLIBC_DIR"`
-	PKGPREFIX="${VERSION}_${DEB_HOST_ARCH}.deb"
+	PKGPREFIX="${UCLIBC_V}_${DEB_HOST_ARCH}.deb"
 	PKGNAMES="libuclibc-dev_${PKGPREFIX} ldso-uclibc_${PKGPREFIX} libc-uclibc_${PKGPREFIX} libm-uclibc_${PKGPREFIX} libpthread-uclibc_${PKGPREFIX} libdl-uclibc_${PKGPREFIX} librt-uclibc_${PKGPREFIX} libresolv-uclibc_${PKGPREFIX} libcrypt-uclibc_${PKGPREFIX} libutil-uclibc_${PKGPREFIX} libnsl-uclibc_${PKGPREFIX}"
 	echo "Installing Uclibc packages: $PKGNAMES"
 	_crossinst $PKGNAMES
@@ -375,9 +403,8 @@ install_uclibc() {
 # glibc #
 #########
 do_glibc_bs() {
-	VERSION=`_get_version "$GLIBC_DIR"`
-	PKGNAME1="libc6-dev-headers-${DEB_HOST_ARCH}-cross"
-	PKGNAME2="libc6-${DEB_HOST_ARCH}-cross libc6-dev-${DEB_HOST_ARCH}-cross"
+	PKGNAME1="$GLIBC_DEV_HEADERS_CROSSPKGNAME"
+	PKGNAME2="$GLIBC_CROSSPKGNAME $GLIBC_DEV_CROSSPKGNAME"
 
 	if [ -z "`_checkinst $PKGNAME2`" -o -n "$FORCED_ACTION" ]; then
 		if [ -z "`_checkinst $PKGNAME1`" -o -n "$FORCED_ACTION" ]; then
@@ -395,21 +422,18 @@ build_glibc_bs() {
 	pushd "$GLIBC_DIR"
 	( env DEB_CROSS_BOOTSTRAP=yes \
 		dpkg-buildpackage -uc -us -r$BUILD_ROOTCMD -a${DEB_HOST_ARCH} \
-		-b )
+		-b -d )
 	_checkerr building "bootstrap glibc"
-	$BUILD_ROOTCMD debian/rules clean
 	popd
 }
 
 install_glibc_bs() {
-	VERSION=`_get_version "$GLIBC_DIR"`
-	PKGNAME="libc6-dev-headers_${VERSION}_${DEB_HOST_ARCH}.deb"
-	_crossinst $PKGNAME
+	PKGNAME="libc6-dev-headers_${GLIBC_V}_${DEB_HOST_ARCH}.deb"
+	_crossinst $GLIBC_DEV_HEADERS_DEBPKG
 	_checkerr installing "bootstrap glibc"
 }
 
 do_glibc_bs2() {
-	VERSION=`_get_version "$GLIBC_DIR"`
 	PKGNAME="libc6-${DEB_HOST_ARCH}-cross libc6-dev-${DEB_HOST_ARCH}-cross"
 
 	if [ -z "`_checkinst $PKGNAME`" -o -n "$FORCED_ACTION" ]; then
@@ -424,18 +448,14 @@ build_glibc_bs2() {
 	pushd "$GLIBC_DIR"
 	( env DEB_CROSS_BOOTSTRAP=second \
 		dpkg-buildpackage -uc -us -r$BUILD_ROOTCMD -a${DEB_HOST_ARCH} \
-		-b )
+		-b -d )
 	_checkerr building glibc
-	$BUILD_ROOTCMD debian/rules clean
 	popd
 }
 
 install_glibc_bs2() {
-	$INSTALL_ROOTCMD dpkg -P libc6-dev-headers-${DEB_HOST_ARCH}-cross
-	VERSION=`_get_version "$GLIBC_DIR"`
-	PKGPREFIX="${VERSION}_${DEB_HOST_ARCH}.deb"
-	PKGNAMES="libc6_${PKGPREFIX} libc6-dev_${PKGPREFIX}"
-	_crossinst $PKGNAMES
+	$INSTALL_ROOTCMD dpkg -P $GLIBC_DEV_HEADERS_CROSSPKGNAME
+	_crossinst $GLIBC_DEBPKG $GLIBC_DEV_DEBPKG
 	_checkerr installing glibc
 }
 
@@ -446,17 +466,13 @@ do_glibc() {
 
 build_glibc() {
 	pushd "$GLIBC_DIR"
-	( dpkg-buildpackage -uc -us -r$BUILD_ROOTCMD -a${DEB_HOST_ARCH} -b )
+	( dpkg-buildpackage -uc -us -r$BUILD_ROOTCMD -a${DEB_HOST_ARCH} -b -d )
 	_checkerr building glibc
-	$BUILD_ROOTCMD debian/rules clean
 	popd
 }
 
 install_glibc() {
-	VERSION=`_get_version "$GLIBC_DIR"`
-	PKGPREFIX="${VERSION}_${DEB_HOST_ARCH}.deb"
-	PKGNAMES="libc6_${PKGPREFIX} libc6-dev_${PKGPREFIX}"
-	_crossinst $PKGNAMES
+	_crossinst $GLIBC_DEBPKG $GLIBC_DEV_DEBPKG
 	_checkerr installing glibc
 }
 
@@ -466,7 +482,6 @@ install_glibc() {
 do_stage1() {
     echo "do_stage1"
 
-	VERSION=`_get_version "$GCC_DIR"`
 	PKGPREFIX1="${GCC_VERSION}-${DEBPKG_HOST_GNU_TYPE}"
 	PKGPREFIX2="${DEB_HOST_ARCH}-cross"
 	PKGNAMES="gcc-${PKGPREFIX1} gcc-${PKGPREFIX1}-base cpp-${PKGPREFIX1} libgcc1-${PKGPREFIX2}"
@@ -490,22 +505,19 @@ build_gcc_bs() {
 	( _env; env GCC_TARGET=${ARCH} DEB_CROSS=yes DEB_CROSS_BOOTSTRAP=yes \
 		dpkg-buildpackage -uc -us -r$BUILD_ROOTCMD -b -d )
 	_checkerr building "bootstrap gcc"
-	$BUILD_ROOTCMD debian/rules clean
 	popd
 }
 
 install_gcc_bs() {
-	VERSION=`_get_version "$GCC_DIR"`
-	PKGPREFIX1="${GCC_VERSION}-${DEBPKG_HOST_GNU_TYPE}_${VERSION}_${DEB_BUILD_ARCH}.deb"
-	PKGPREFIX2="${GCC_VERSION}-${DEBPKG_HOST_GNU_TYPE}-base_${VERSION}_${DEB_BUILD_ARCH}.deb"
-	PKGPREFIX3="${DEB_HOST_ARCH}-cross_${VERSION}_all.deb"
-	PKGNAMES="gcc-${PKGPREFIX1} gcc-${PKGPREFIX2} cpp-${PKGPREFIX1} libgcc1-${PKGPREFIX3}"
+    _crossinst $LIBGCC_DEBPKG
+    _checkerr installing "bootstrap gcc"
+
+	PKGNAMES="$GCC_BASE_DEBPKG $GCC_DEBPKG $CPP_DEBPKG"
 	( cd "$SRC_DIR"; $INSTALL_ROOTCMD dpkg -i --force-depends $PKGNAMES )
 	_checkerr installing "bootstrap gcc"
 }
 
 do_stage2() {
-	VERSION=`_get_version "$GCC_DIR"`
 	PKGPREFIX1="${GCC_VERSION}-${DEBPKG_HOST_GNU_TYPE}"
 	PKGPREFIX2="${DEB_HOST_ARCH}-cross"
 	PKGNAMES="gcc-${PKGPREFIX1} gcc-${PKGPREFIX1}-base cpp-${PKGPREFIX1} g++-${PKGPREFIX1} libgcc1-${PKGPREFIX2} libstdc++6-${PKGPREFIX2} libstdc++6-${GCC_VERSION}-dev-${PKGPREFIX2}"
@@ -528,23 +540,19 @@ do_stage2() {
 }
 
 build_gcc() {
+    PKGLIST_GCC="gcc-${GCC_VERSION}-${DEBPKG_HOST_GNU_TYPE} cpp-${GCC_VERSION}-${DEBPKG_HOST_GNU_TYPE} libgcc1-${DEB_HOST_ARCH}-cross g++-${GCC_VERSION}-${DEBPKG_HOST_GNU_TYPE} libstdc++${GXX_SONAME}-${DEB_HOST_ARCH}-cross libstdc++${GXX_SONAME}-dev-${DEB_HOST_ARCH}-cross"
 	$INSTALL_ROOTCMD dpkg -P ${PKGLIST_GCC}
 	pushd "$GCC_DIR"
 	ARCH=${DEB_HOST_ARCH}
 	( _env; env GCC_TARGET=${ARCH} DEB_CROSS=yes DEB_TARGET_LIBCXX=yes \
 		dpkg-buildpackage -uc -us -r$BUILD_ROOTCMD -d )
 	_checkerr building gcc
-	$BUILD_ROOTCMD debian/rules clean
 	popd
 }
 
 install_gcc() {
-	VERSION=`_get_version "$GCC_DIR"`
-	PKGPREFIX1="${GCC_VERSION}-${DEBPKG_HOST_GNU_TYPE}_${VERSION}_${DEB_BUILD_ARCH}.deb"
-	PKGPREFIX0="${GCC_VERSION}-${DEBPKG_HOST_GNU_TYPE}-base_${VERSION}_${DEB_BUILD_ARCH}.deb"
-	PKGPREFIX2="${DEB_HOST_ARCH}-cross_${VERSION}_all.deb"
-	PKGNAMES="gcc-${PKGPREFIX1} gcc-${PKGPREFIX0} cpp-${PKGPREFIX1} g++-${PKGPREFIX1} libgcc1-${PKGPREFIX2} libstdc++6-${PKGPREFIX2} libstdc++6-${GCC_VERSION}-dev-${PKGPREFIX2}"
-	( cd "$SRC_DIR"; $INSTALL_ROOTCMD dpkg -i $PKGNAMES )
+    _crossinst $LIBGCC_DEBPKG $LIBSTDCXX_DEBPKG $LIBSTDCXX_DEV_DEBPKG
+	( cd "$SRC_DIR"; $INSTALL_ROOTCMD dpkg -i $GCC_BASE_DEBPKG $GCC_DEBPKG $CPP_DEBPKG $GXX_DEBPKG)
 	_checkerr installing gcc
 }
 
@@ -552,14 +560,11 @@ install_gcc() {
 
 install_cross_toolchain_pkg() {
 	# render package's "Depends:" header
-	BINUTILS_VERSION=`_get_version "$BINUTILS_DIR"`
-	BINUTILS_PKGDEP="binutils-${DEBPKG_HOST_GNU_TYPE} (= ${BINUTILS_VERSION})"
+	BINUTILS_PKGDEP="binutils-${DEBPKG_HOST_GNU_TYPE} (= ${BINUTILS_V})"
 
-	LLD_VERSION=`_get_version "$LLD_DIR"`
-	LLD_PKGDEP="linux-libc-dev-${DEB_HOST_ARCH}-cross (= ${LLD_VERSION})"
+	LLD_PKGDEP="linux-libc-dev-${DEB_HOST_ARCH}-cross (= ${LLD_V})"
 
-	GCCPKG_VERSION=`_get_version "$GCC_DIR"`
-	GCC_PKGDEP="gcc-${GCC_VERSION}-${DEBPKG_HOST_GNU_TYPE} (= ${GCCPKG_VERSION}), gcc-${GCC_VERSION}-${DEBPKG_HOST_GNU_TYPE}-base (= ${GCCPKG_VERSION}), cpp-${GCC_VERSION}-${DEBPKG_HOST_GNU_TYPE} (= ${GCCPKG_VERSION}), g++-${GCC_VERSION}-${DEBPKG_HOST_GNU_TYPE} (= ${GCCPKG_VERSION}), libgcc1-${DEB_HOST_ARCH}-cross (= ${GCCPKG_VERSION}), libstdc++6-${DEB_HOST_ARCH}-cross (= ${GCCPKG_VERSION}), libstdc++6-${GCC_VERSION}-dev-${DEB_HOST_ARCH}-cross (= ${GCCPKG_VERSION})"
+	GCC_PKGDEP="gcc-${GCC_VERSION}-${DEBPKG_HOST_GNU_TYPE} (= ${GCC_V}), gcc-${GCC_VERSION}-${DEBPKG_HOST_GNU_TYPE}-base (= ${GCC_V}), cpp-${GCC_VERSION}-${DEBPKG_HOST_GNU_TYPE} (= ${GCC_V}), g++-${GCC_VERSION}-${DEBPKG_HOST_GNU_TYPE} (= ${GCC_V}), libgcc1-${DEB_HOST_ARCH}-cross (= ${GCC_V}), libstdc++6-${DEB_HOST_ARCH}-cross (= ${GCC_V}), libstdc++6-${GCC_VERSION}-dev-${DEB_HOST_ARCH}-cross (= ${GCC_V})"
 
     if [ "x$MYARCH" = "x$DEB_HOST_ARCH" ]; then
         CONFLICTS="cpp-${GCC_VERSION}, gcc-${GCC_VERSION}, g++-${GCC_VERSION}, libstdc++6-dev"
@@ -571,12 +576,10 @@ install_cross_toolchain_pkg() {
 
     case "$DEB_HOST_ARCH_OS" in
         uclibc)
-	        UCLIBC_VERSION=`_get_version "$UCLIBC_DIR"`
-	        UCLIBC_PKGDEP="libuclibc0-${DEB_HOST_ARCH}-cross (= ${UCLIBC_VERSION}), libuclibc-dev-${DEB_HOST_ARCH}-cross (= ${UCLIBC_VERSION})"
+	        UCLIBC_PKGDEP="libuclibc0-${DEB_HOST_ARCH}-cross (= ${UCLIBC_V}), libuclibc-dev-${DEB_HOST_ARCH}-cross (= ${UCLIBC_V})"
 		    DEPENDS="$DEPENDS $UCLIBC_PKGDEP";;
 	    linux)
-	        GLIBC_VERSION=`_get_version "$GLIBC_DIR"`
-	        GLIBC_PKGDEP="libc6-${DEB_HOST_ARCH}-cross (= ${GLIBC_VERSION}), libc6-dev-${DEB_HOST_ARCH}-cross (= ${GLIBC_VERSION})"
+	        GLIBC_PKGDEP="libc6-${DEB_HOST_ARCH}-cross (= ${GLIBC_V}), libc6-dev-${DEB_HOST_ARCH}-cross (= ${GLIBC_V})"
 		    DEPENDS="$DEPENDS $GLIBC_PKGDEP";;
         *)
             echo "Unknown OS"; exit 1;;
@@ -589,12 +592,12 @@ install_cross_toolchain_pkg() {
 	TPKG_PKGNAME="${DEB_HOST_ARCH}-cross-toolchain"
 	TPKG_PKGDIR=$SRC_DIR/$TPKG_PKGNAME
 
-	TPKG_VERSION="${TP_VERSION}+binutils${BINUTILS_VERSION}+linux-libc-dev${LLD_VERSION}+gcc${GCCPKG_VERSION}"
+	TPKG_VERSION="${TP_VERSION}+binutils${BINUTILS_V}+linux-libc-dev${LLD_V}+gcc${GCC_V}"
     case "$DEB_HOST_ARCH_OS" in
         uclibc)
-            TPKG_VERSION="${TPKG_VERSION}+uclibc${UCLIBC_VERSION}";;
+            TPKG_VERSION="${TPKG_VERSION}+uclibc${UCLIBC_V}";;
         linux)
-            TPKG_VERSION="${TPKG_VERSION}+glibc${GLIBC_VERSION}";;
+            TPKG_VERSION="${TPKG_VERSION}+glibc${GLIBC_V}";;
         *)
             echo "Unknown OS"; exit 1;;
     esac
@@ -629,16 +632,13 @@ install_virtual_toolchain() {
 	TPKG_PKGNAME="${DEB_HOST_ARCH}-toolchain"
 	TPKG_PKGDIR=$SRC_DIR/$TPKG_PKGNAME
 
-	GCCPKG_VERSION=`_get_version "$GCC_DIR"`
-    DEPENDS="g++-${GCC_VERSION}-${DEBPKG_HOST_GNU_TYPE} (= ${GCCPKG_VERSION}),"
+    DEPENDS="g++-${GCC_VERSION}-${DEBPKG_HOST_GNU_TYPE} (= ${GCC_V}),"
 
     case "$DEB_HOST_ARCH_OS" in
         uclibc)
-	        UCLIBC_VERSION=`_get_version "$UCLIBC_DIR"`
-            DEPENDS="${DEPENDS} libuclibc-dev-${DEB_HOST_ARCH}-cross (= ${UCLIBC_VERSION})";;
+            DEPENDS="${DEPENDS} libuclibc-dev-${DEB_HOST_ARCH}-cross (= ${UCLIBC_v})";;
         linux)
-	        GLIBC_VERSION=`_get_version "$GLIBC_DIR"`
-            DEPENDS="${DEPENDS} libc6-dev-${DEB_HOST_ARCH}-cross (= ${GLIBC_VERSION})";;
+            DEPENDS="${DEPENDS} libc6-dev-${DEB_HOST_ARCH}-cross (= ${GLIBC_V})";;
         *)
             echo "Unknown OS"; exit 1;;
     esac
@@ -715,14 +715,13 @@ install_virtual_bs_toolchain() {
 	
 	mkdir -p $TPKG_PKGDIR/DEBIAN
 
-	GCCPKG_VERSION=`_get_version "$GCC_DIR"`
 	cat > $TPKG_PKGDIR/DEBIAN/control <<EOF
 Package: $TPKG_PKGNAME
 Version: 0.2
 Section: host-tools
 Priority: optional
 Architecture: all
-Depends: gcc-${GCC_VERSION}-${DEBPKG_HOST_GNU_TYPE} (= ${GCCPKG_VERSION}), cpp-${GCC_VERSION}-${DEBPKG_HOST_GNU_TYPE} (= ${GCCPKG_VERSION})
+Depends: gcc-${GCC_VERSION}-${DEBPKG_HOST_GNU_TYPE} (= ${GCC_V}), cpp-${GCC_VERSION}-${DEBPKG_HOST_GNU_TYPE} (= ${GCC_V})
 Source: toolchain-package
 Conflicts: gcc-${GCC_VERSION}, cpp-${GCC_VERSION}
 Provides: gcc-${GCC_VERSION}, cpp-${GCC_VERSION}, gcc, cpp
@@ -759,7 +758,7 @@ EOF
 }
 
 remove_cross_bs_toolchain() {
-	GCC_PKG="gcc-${GCC_VERSION}-${DEBPKG_HOST_GNU_TYPE} gcc-${GCC_VERSION}-${DEBPKG_HOST_GNU_TYPE}-base  cpp-${GCC_VERSION}-${DEBPKG_HOST_GNU_TYPE} libgcc1-${DEB_HOST_ARCH}-cross ${DEB_HOST_ARCH}-bootstrap-toolchain"
+	GCC_PKG="gcc-${GCC_VERSION}-${DEBPKG_HOST_GNU_TYPE} gcc-${GCC_VERSION}-${DEBPKG_HOST_GNU_TYPE}-base  cpp-${GCC_VERSION}-${DEBPKG_HOST_GNU_TYPE} ${DEB_HOST_ARCH}-bootstrap-toolchain"
 
 	$INSTALL_ROOTCMD apt-get -y --force-yes remove $GCC_PKG
 }
