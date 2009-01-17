@@ -72,9 +72,7 @@ SRC_DIR=`pwd`
 # if $NO_CLEAN is set in the environment, this function does nothing
 cleanup() {
 	if [ -z "$NO_CLEAN" ]; then
-		if [ "$SRC_DIR" != "/usr/src" ]; then
-			rm -rf "$SRC_DIR"
-		fi
+		rm -rf "$SRC_DIR"
 	fi
 }
 
