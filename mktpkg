@@ -768,5 +768,4 @@ case "$DEB_HOST_GNU_SYSTEM" in
         echo "Unknown OS";;
 esac
 
-do_cross_toolchain_pkg
 install_cross_toolchain_pkg
