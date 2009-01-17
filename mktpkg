@@ -93,8 +93,7 @@ GCC_DIR=$SRC_DIR/gcc-$GCC_VERSION
 [ -n "$BUILD_ROOTCMD" ] || BUILD_ROOTCMD=fakeroot
 [ -n "$INSTALL_ROOTCMD" ] || INSTALL_ROOTCMD=sudo
 
-# Options to apt-get source
-[ -n "$APT_OPTS" ] || APT_OPTS="Acquire::Source-Symlinks=False"
+#
 
 MYARCH=`dpkg --print-architecture`
 
