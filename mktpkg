@@ -423,13 +423,12 @@ build_glibc_bs() {
 }
 
 install_glibc_bs() {
-	PKGNAME="libc6-dev-headers_${GLIBC_V}_${DEB_HOST_ARCH}.deb"
 	_crossinst $GLIBC_DEV_HEADERS_DEBPKG
 	_checkerr installing "bootstrap glibc"
 }
 
 do_glibc_bs2() {
-	PKGNAME="libc6-${DEB_HOST_ARCH}-cross libc6-dev-${DEB_HOST_ARCH}-cross"
+	PKGNAME="$GLIBC_CROSSPKGNAME $GLIBC_DEV_CROSSPKGNAME"
 
 	if [ -z "`_checkinst $PKGNAME`" -o -n "$FORCED_ACTION" ]; then
 		build_glibc_bs2
@@ -477,9 +476,7 @@ install_glibc() {
 do_stage1() {
     echo "do_stage1"
 
-	PKGPREFIX1="${GCC_VERSION}-${DEBPKG_HOST_GNU_TYPE}"
-	PKGPREFIX2="${DEB_HOST_ARCH}-cross"
-	PKGNAMES="gcc-${PKGPREFIX1} gcc-${PKGPREFIX1}-base cpp-${PKGPREFIX1} libgcc1-${PKGPREFIX2}"
+	PKGNAMES="$GCC_PKGNAME $GCC_BASE_PKGNAME $CPP_PKGNAME $LIBGCC_CROSSPKGNAME"
 
 	if [ -z "`_checkinst $PKGNAMES`" -o -n "$FORCED_ACTION" ]; then
 		do_stage1_libc
@@ -513,9 +510,7 @@ install_gcc_bs() {
 }
 
 do_stage2() {
-	PKGPREFIX1="${GCC_VERSION}-${DEBPKG_HOST_GNU_TYPE}"
-	PKGPREFIX2="${DEB_HOST_ARCH}-cross"
-	PKGNAMES="gcc-${PKGPREFIX1} gcc-${PKGPREFIX1}-base cpp-${PKGPREFIX1} g++-${PKGPREFIX1} libgcc1-${PKGPREFIX2} libstdc++6-${PKGPREFIX2} libstdc++6-${GCC_VERSION}-dev-${PKGPREFIX2}"
+	PKGNAMES="$GCC_PKGNAME $GCC_BASE_PKGNAME $CPP_PKGNAME $GXX_PKGNAME $LIBGCC_CROSSPKGNAME $LIBSTDCXX_CROSSNAME $LIBSTDCXX_DEV_CROSSNAME"
 
 	if [ -z "`_checkinst $PKGNAMES`" -o -n "$FORCED_ACTION" ]; then
 		do_stage2_libc
@@ -535,7 +530,7 @@ do_stage2() {
 }
 
 build_gcc() {
-    PKGLIST_GCC="gcc-${GCC_VERSION}-${DEBPKG_HOST_GNU_TYPE} cpp-${GCC_VERSION}-${DEBPKG_HOST_GNU_TYPE} libgcc1-${DEB_HOST_ARCH}-cross g++-${GCC_VERSION}-${DEBPKG_HOST_GNU_TYPE} libstdc++${GXX_SONAME}-${DEB_HOST_ARCH}-cross libstdc++${GXX_SONAME}-dev-${DEB_HOST_ARCH}-cross"
+    PKGLIST_GCC="$GCC_PKGNAME $GCC_BASE_PKGNAME $CPP_PKGNAME $GXX_PKGNAME $LIBGCC_CROSSPKGNAME $LIBSTDCXX_CROSSNAME $LIBSTDCXX_DEV_CROSSNAME"
 	$INSTALL_ROOTCMD dpkg -P ${PKGLIST_GCC}
 	pushd "$GCC_DIR"
 	ARCH=${DEB_HOST_ARCH}
@@ -555,11 +550,11 @@ install_gcc() {
 
 install_cross_toolchain_pkg() {
 	# render package's "Depends:" header
-	BINUTILS_PKGDEP="binutils-${DEBPKG_HOST_GNU_TYPE} (= ${BINUTILS_V})"
+	BINUTILS_PKGDEP="$BINUTILS_PKGNAME (= ${BINUTILS_V})"
 
-	LLD_PKGDEP="linux-libc-dev-${DEB_HOST_ARCH}-cross (= ${LLD_V})"
+	LLD_PKGDEP="$LLD_CROSSPKGNAME (= ${LLD_V})"
 
-	GCC_PKGDEP="gcc-${GCC_VERSION}-${DEBPKG_HOST_GNU_TYPE} (= ${GCC_V}), gcc-${GCC_VERSION}-${DEBPKG_HOST_GNU_TYPE}-base (= ${GCC_V}), cpp-${GCC_VERSION}-${DEBPKG_HOST_GNU_TYPE} (= ${GCC_V}), g++-${GCC_VERSION}-${DEBPKG_HOST_GNU_TYPE} (= ${GCC_V}), libgcc1-${DEB_HOST_ARCH}-cross (= ${GCC_V}), libstdc++6-${DEB_HOST_ARCH}-cross (= ${GCC_V}), libstdc++6-${GCC_VERSION}-dev-${DEB_HOST_ARCH}-cross (= ${GCC_V})"
+	GCC_PKGDEP="$GCC_PKGNAME (= ${GCC_V}), $GCC_BASE_PKGNAME (= ${GCC_V}), $CPP_PKGNAME (= ${GCC_V}), $GXX_PKGNAME (= ${GCC_V}), $LIBGCC_CROSSPKGNAME (= ${GCC_V}), $LIBSTDCXX_CROSSNAME (= ${GCC_V}), $LIBSTDCXX_DEV_CROSSNAME (= ${GCC_V})"
 
     if [ "x$MYARCH" = "x$DEB_HOST_ARCH" ]; then
         CONFLICTS="cpp-${GCC_VERSION}, gcc-${GCC_VERSION}, g++-${GCC_VERSION}, libstdc++6-dev"
@@ -574,7 +569,7 @@ install_cross_toolchain_pkg() {
 	        UCLIBC_PKGDEP="libuclibc0-${DEB_HOST_ARCH}-cross (= ${UCLIBC_V}), libuclibc-dev-${DEB_HOST_ARCH}-cross (= ${UCLIBC_V})"
 		    DEPENDS="$DEPENDS $UCLIBC_PKGDEP";;
 	    linux)
-	        GLIBC_PKGDEP="libc6-${DEB_HOST_ARCH}-cross (= ${GLIBC_V}), libc6-dev-${DEB_HOST_ARCH}-cross (= ${GLIBC_V})"
+		    GLIBC_PKGDEP="$GLIBC_CROSSPKGNAME (= ${GLIBC_V}), $GLIBC_DEV_CROSSPKGNAME (= ${GLIBC_V})"
 		    DEPENDS="$DEPENDS $GLIBC_PKGDEP";;
         *)
             echo "Unknown OS"; exit 1;;
@@ -623,13 +618,13 @@ install_virtual_toolchain() {
 	TPKG_PKGNAME="${DEB_HOST_ARCH}-toolchain"
 	TPKG_PKGDIR=$SRC_DIR/$TPKG_PKGNAME
 
-    DEPENDS="g++-${GCC_VERSION}-${DEBPKG_HOST_GNU_TYPE} (= ${GCC_V}),"
+    DEPENDS="$GXX_PKGNAME (= ${GCC_V}),"
 
     case "$DEB_HOST_ARCH_OS" in
         uclibc)
             DEPENDS="${DEPENDS} libuclibc-dev-${DEB_HOST_ARCH}-cross (= ${UCLIBC_v})";;
         linux)
-            DEPENDS="${DEPENDS} libc6-dev-${DEB_HOST_ARCH}-cross (= ${GLIBC_V})";;
+            DEPENDS="${DEPENDS} $GLIBC_DEV_CROSSPKGNAME (= ${GLIBC_V})";;
         *)
             echo "Unknown OS"; exit 1;;
     esac
@@ -704,7 +699,7 @@ Version: 0.2
 Section: host-tools
 Priority: optional
 Architecture: all
-Depends: gcc-${GCC_VERSION}-${DEBPKG_HOST_GNU_TYPE} (= ${GCC_V}), cpp-${GCC_VERSION}-${DEBPKG_HOST_GNU_TYPE} (= ${GCC_V})
+Depends: $GCC_PKGNAME (= ${GCC_V}), $CPP_PKGNAME (= ${GCC_V})
 Source: toolchain-package
 Conflicts: gcc-${GCC_VERSION}, cpp-${GCC_VERSION}
 Provides: gcc-${GCC_VERSION}, cpp-${GCC_VERSION}, gcc, cpp
@@ -741,7 +736,7 @@ EOF
 }
 
 remove_cross_bs_toolchain() {
-	GCC_PKG="gcc-${GCC_VERSION}-${DEBPKG_HOST_GNU_TYPE} gcc-${GCC_VERSION}-${DEBPKG_HOST_GNU_TYPE}-base  cpp-${GCC_VERSION}-${DEBPKG_HOST_GNU_TYPE} ${DEB_HOST_ARCH}-bootstrap-toolchain"
+	GCC_PKG="$GCC_PKGNAME $GCC_BASE_PKGNAME $CPP_PKGNAME ${DEB_HOST_ARCH}-bootstrap-toolchain"
 
 	$INSTALL_ROOTCMD apt-get -y --force-yes remove $GCC_PKG
 }
