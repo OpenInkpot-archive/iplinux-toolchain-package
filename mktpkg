@@ -151,9 +151,7 @@ esac
 
 GCC_V=$(_get_version "$GCC_DIR")
 case "$GCC_VERSION" in
-	3.3)
-		GXX_SONAME=5;;
-	3.4|4.0|4.1|4.2|4.3)
+	4.3)
 		GXX_SONAME=6;;
     *)
         echo "Unknown GCC_VERSION: $GCC_VERSION"
