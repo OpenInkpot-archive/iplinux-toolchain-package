@@ -308,13 +308,14 @@ install_lld() {
 	_checkerr installing linux-libc-dev
 }
 
-##### c libraries #####
+# --- libraries ---
+
 do_stage1_libc() {
     echo "do_stage1_libc"
 
     case "$DEB_HOST_GNU_SYSTEM" in
         *uclibc*) do_uclibc_bs;;
-   	*gnu*) do_glibc_bs;;
+        *gnu*) do_glibc_bs;;
         *) echo "Unknown OS"; exit 1;;
     esac
 }
