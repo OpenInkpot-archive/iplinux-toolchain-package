@@ -300,7 +300,6 @@ build_lld() {
 	pushd "$LLD_DIR"
 	dpkg-buildpackage -uc -us -r$BUILD_ROOTCMD -a${DEB_HOST_ARCH} -d -b
 	_checkerr building linux-libc-dev
-	$BUILD_ROOTCMD debian/rules clean
 	popd
 }
 
@@ -354,7 +353,6 @@ build_uclibc_bs() {
 		dpkg-buildpackage -uc -us -r$BUILD_ROOTCMD -a${DEB_HOST_ARCH} \
 		-b )
 	_checkerr building "bootstrap uclibc"
-	$BUILD_ROOTCMD debian/rules clean
 	popd
 }
 
@@ -380,7 +378,6 @@ build_uclibc() {
 	pushd "$UCLIBC_DIR"
 	( dpkg-buildpackage -uc -us -r$BUILD_ROOTCMD -a${DEB_HOST_ARCH} -b )
 	_checkerr building uclibc
-	$BUILD_ROOTCMD debian/rules clean
 	popd
 }
 
