@@ -95,7 +95,7 @@ GCC_DIR=$SRC_DIR/gcc-$GCC_VERSION
 
 #
 
-MYARCH=`dpkg --print-architecture`
+MYARCH=$(dpkg --print-architecture)
 
 ARCH_INFO=$(dpkg-architecture -a$TARGET -s)
 if [ -z "$ARCH_INFO" ]; then
