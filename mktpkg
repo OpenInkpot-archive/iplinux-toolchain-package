@@ -76,6 +76,10 @@ cleanup() {
 	fi
 }
 
+if [ -z "$TPKG_MAINTAINER" ]; then
+	TPKG_MAINTAINER="Mikhail Gusarov <dottedmag@dottedmag.net>"
+fi
+
 #
 # Current gcc version (part of package name)
 #
@@ -576,10 +580,6 @@ install_cross_toolchain_pkg() {
             echo "Unknown OS"; exit 1;;
     esac
 
-	if [ -z "$TPKG_MAINTAINER" ]; then
-		TPKG_MAINTAINER="Alexander Shishkin <virtuoso@slind.org>"
-	fi
-
 	TPKG_PKGNAME="${DEB_HOST_ARCH}-cross-toolchain"
 	TPKG_PKGDIR=$SRC_DIR/$TPKG_PKGNAME
 
@@ -633,10 +633,6 @@ install_virtual_toolchain() {
         *)
             echo "Unknown OS"; exit 1;;
     esac
-	
-	if [ -z "$TPKG_MAINTAINER" ]; then
-		TPKG_MAINTAINER="Alexander Shishkin <virtuoso@slind.org>"
-	fi
 	
 	mkdir -p $TPKG_PKGDIR/DEBIAN
 
@@ -700,10 +696,6 @@ install_virtual_bs_toolchain() {
 	TPKG_PKGNAME="${DEB_HOST_ARCH}-bootstrap-toolchain"
 	TPKG_PKGDIR=$SRC_DIR/$TPKG_PKGNAME
 
-	if [ -z "$TPKG_MAINTAINER" ]; then
-		TPKG_MAINTAINER="Alexander Shishkin <virtuoso@slind.org>"
-	fi
-	
 	mkdir -p $TPKG_PKGDIR/DEBIAN
 
 	cat > $TPKG_PKGDIR/DEBIAN/control <<EOF
