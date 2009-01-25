@@ -556,7 +556,7 @@ install_cross_toolchain_pkg() {
     PROVIDES="build-essential-${DEB_BUILD_ARCH}-cross, cross-toolchain-${DEB_HOST_ARCH}-cross, cross-toolchain-${DEB_HOST_ARCH}-dcv1"
     if [ "x$MYARCH" = "x$DEB_HOST_ARCH" ]; then
         CONFLICTS="cpp-${GCC_VERSION}, gcc-${GCC_VERSION}, g++-${GCC_VERSION}, gcc, cpp, g++, libstdc++${GXX_SONAME}-${GCC_VERSION}-dev"
-        PROVIDES="${PROVIDES} cpp-${GCC_VERSION}, cpp-${GCC_VERSION], g++-${GCC_VERSION}, gcc, cpp, g++"
+        PROVIDES="${PROVIDES} cpp-${GCC_VERSION}, cpp-${GCC_VERSION}, g++-${GCC_VERSION}, gcc, cpp, g++"
     else
         CONFLICTS=""
     fi
