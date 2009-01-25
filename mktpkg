@@ -696,6 +696,9 @@ do_binutils
 do_lld
 do_stage1
 do_stage2
+
+install_cross_toolchain_pkg
+
 case "$DEB_HOST_GNU_SYSTEM" in
     *uclibc*)
         ;;
@@ -706,4 +709,3 @@ case "$DEB_HOST_GNU_SYSTEM" in
         echo "Unknown OS";;
 esac
 
-install_cross_toolchain_pkg
