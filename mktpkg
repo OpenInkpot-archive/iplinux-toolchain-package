@@ -110,7 +110,12 @@ eval "$ARCH_INFO"
 
 DEBPKG_HOST_GNU_TYPE=$(echo ${DEB_HOST_GNU_TYPE} | tr _ -)
 
-#
+if [ "x${DEB_HOST_GNU_TYPE}" = "x${DEB_BUILD_GNU_TYPE}" ] ; then
+	echo "Host system type same as target: ${DEB_HOST_GNU_TYPE}"
+	echo "This should never happen. Ure are probably using wrong dpkg."
+	exit 1
+fi
+
 
 if [ -z $MANUAL_MODE ]; then
     echo "Get packages from Git"; exit 1;
