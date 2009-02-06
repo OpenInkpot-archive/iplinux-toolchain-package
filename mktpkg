@@ -481,11 +481,7 @@ do_stage1() {
 	if [ -z "`_checkinst $PKGNAMES`" -o -n "$FORCED_ACTION" ]; then
 		do_stage1_libc
 		build_gcc_bs
-		remove_native_toolchain
 		install_gcc_bs
-		if [ "x$MYARCH" = "x$DEB_HOST_ARCH" ]; then
-		    install_virtual_bs_toolchain
-		fi
 	else
 		echo "base compiler ($PKGNAMES) appears to be installed, skipping"
 	fi
@@ -514,12 +510,7 @@ do_stage2() {
 
 	if [ -z "`_checkinst $PKGNAMES`" -o -n "$FORCED_ACTION" ]; then
 		do_stage2_libc
-		if [ "x$MYARCH" = "x$DEB_HOST_ARCH" ]; then
-		    remove_cross_bs_toolchain
-		fi
-		install_native_toolchain
 		build_gcc
-		remove_native_toolchain
 		install_gcc
 	else
 		echo "compiler ($PKGNAMES) appears to be installed, skipping"
@@ -554,12 +545,7 @@ install_cross_toolchain_pkg() {
 	GCC_PKGDEP="$GCC_PKGNAME (= ${GCC_V}), $GCC_BASE_PKGNAME (= ${GCC_V}), $CPP_PKGNAME (= ${GCC_V}), $GXX_PKGNAME (= ${GCC_V}), $LIBGCC_CROSSPKGNAME (= ${GCC_V}), $LIBSTDCXX_CROSSNAME (= ${GCC_V}), $LIBSTDCXX_DEV_CROSSNAME (= ${GCC_V})"
 
     PROVIDES="build-essential-${DEB_BUILD_ARCH}-cross, cross-toolchain-${DEB_HOST_ARCH}-cross, cross-toolchain-${DEB_HOST_ARCH}-dcv1"
-    if [ "x$MYARCH" = "x$DEB_HOST_ARCH" ]; then
-        CONFLICTS="cpp-${GCC_VERSION}, gcc-${GCC_VERSION}, g++-${GCC_VERSION}, gcc, cpp, g++, libstdc++${GXX_SONAME}-${GCC_VERSION}-dev"
-        PROVIDES="${PROVIDES}, cpp-${GCC_VERSION}, cpp-${GCC_VERSION}, g++-${GCC_VERSION}, gcc, cpp, g++"
-    else
-        CONFLICTS=""
-    fi
+    CONFLICTS=""
 
 	DEPENDS="$BINUTILS_PKGDEP, $LLD_PKGDEP, $GCC_PKGDEP,"
 
@@ -608,96 +594,15 @@ Description: cross-compilation toolchain for $DEB_HOST_ARCH
  for cross-compilation into $DEB_HOST_ARCH target.
 EOF
 
-    if [ "x$MYARCH" = "x$DEB_HOST_ARCH" ]; then
-	    mkdir -p $TPKG_PKGDIR/usr/bin
-	
-		# Install symlinks.
-		ln -s /usr/bin/${DEB_HOST_GNU_TYPE}-gcc-${GCC_VERSION} $TPKG_PKGDIR/usr/bin/cc
-		ln -s /usr/bin/${DEB_HOST_GNU_TYPE}-gcc-${GCC_VERSION} $TPKG_PKGDIR/usr/bin/gcc
-		ln -s /usr/bin/${DEB_HOST_GNU_TYPE}-cpp-${GCC_VERSION} $TPKG_PKGDIR/usr/bin/cpp
-		ln -s /usr/bin/${DEB_HOST_GNU_TYPE}-g++-${GCC_VERSION} $TPKG_PKGDIR/usr/bin/g++
-		ln -s /usr/bin/${DEB_HOST_GNU_TYPE}-gcc-${GCC_VERSION} $TPKG_PKGDIR/usr/bin/gcc-${GCC_VERSION}
-		ln -s /usr/bin/${DEB_HOST_GNU_TYPE}-cpp-${GCC_VERSION} $TPKG_PKGDIR/usr/bin/cpp-${GCC_VERSION}
-		ln -s /usr/bin/${DEB_HOST_GNU_TYPE}-g++-${GCC_VERSION} $TPKG_PKGDIR/usr/bin/g++-${GCC_VERSION}
-	fi
-
 	dpkg-deb -b $TPKG_PKGDIR
     $INSTALL_ROOTCMD dpkg -i $SRC_DIR/${TPKG_PKGNAME}.deb
 	dpkg-name -o $SRC_DIR/${TPKG_PKGNAME}.deb
-}
-
-remove_native_toolchain() {
-	if [ "x$MYARCH" = "x$DEB_HOST_ARCH" ]; then
-	    $INSTALL_ROOTCMD apt-get -y --force-yes remove gcc-$GCC_VERSION cpp-$GCC_VERSION gcc cpp
-	fi
-}
-
-install_native_toolchain() {
-	if [ "x$MYARCH" = "x$DEB_HOST_ARCH" ]; then
-	    $INSTALL_ROOTCMD env $PROXYENV apt-get -y --force-yes install gcc-$GCC_VERSION cpp-$GCC_VERSION g++-$GCC_VERSION gcc cpp g++
-    fi
-}
-
-install_virtual_bs_toolchain() {
-	TPKG_PKGNAME="${DEB_HOST_ARCH}-bootstrap-toolchain"
-	TPKG_PKGDIR=$SRC_DIR/$TPKG_PKGNAME
-
-	mkdir -p $TPKG_PKGDIR/DEBIAN
-
-	cat > $TPKG_PKGDIR/DEBIAN/control <<EOF
-Package: $TPKG_PKGNAME
-Version: 0.2
-Section: host-tools
-Priority: optional
-Architecture: all
-Depends: $GCC_PKGNAME (= ${GCC_V}), $CPP_PKGNAME (= ${GCC_V})
-Source: toolchain-package
-Conflicts: gcc-${GCC_VERSION}, cpp-${GCC_VERSION}
-Provides: gcc-${GCC_VERSION}, cpp-${GCC_VERSION}, gcc, cpp
-Installed-size: 4
-Maintainer: $TPKG_MAINTAINER
-Description: Meta-package to remove native Debian toolchain
- WARNING! WARNING! WARNING!
- By installing this package, you confirm that you do not want to compile
- anything with native compiler anymore. You confirm that you do not care whether
- anything compiled with Slind's compiler would run on your Debian system or not.
-EOF
-
-	mkdir -p $TPKG_PKGDIR/usr/share/doc/$TPKG_PKGNAME
-	cat > $TPKG_PKGDIR/usr/share/doc/$TPKG_PKGNAME/changelog <<EOF
-$TPKG_PKGNAME (0.2) unstable; urgency=low
-
-  * Initial release.
-
- -- $TPKG_MAINTAINER  `date --rfc-822`
-EOF
-
-	mkdir -p $TPKG_PKGDIR/usr/bin
-	
-	# Install symlinks.
-	ln -s /usr/bin/${DEB_HOST_GNU_TYPE}-gcc-${GCC_VERSION} $TPKG_PKGDIR/usr/bin/cc
-	ln -s /usr/bin/${DEB_HOST_GNU_TYPE}-gcc-${GCC_VERSION} $TPKG_PKGDIR/usr/bin/gcc
-	ln -s /usr/bin/${DEB_HOST_GNU_TYPE}-cpp-${GCC_VERSION} $TPKG_PKGDIR/usr/bin/cpp
-	ln -s /usr/bin/${DEB_HOST_GNU_TYPE}-gcc-${GCC_VERSION} $TPKG_PKGDIR/usr/bin/gcc-${GCC_VERSION} 
-	ln -s /usr/bin/${DEB_HOST_GNU_TYPE}-cpp-${GCC_VERSION} $TPKG_PKGDIR/usr/bin/cpp-${GCC_VERSION} 
-
-	dpkg-deb -b $TPKG_PKGDIR
-	$INSTALL_ROOTCMD dpkg -i $SRC_DIR/${TPKG_PKGNAME}.deb
-	dpkg-name -o $SRC_DIR/${TPKG_PKGNAME}.deb
-}
-
-remove_cross_bs_toolchain() {
-	GCC_PKG="$GCC_PKGNAME $GCC_BASE_PKGNAME $CPP_PKGNAME ${DEB_HOST_ARCH}-bootstrap-toolchain"
-
-	$INSTALL_ROOTCMD apt-get -y --force-yes remove $GCC_PKG
 }
 
 do_binutils
 do_lld
 do_stage1
 do_stage2
-
-install_cross_toolchain_pkg
 
 case "$DEB_HOST_GNU_SYSTEM" in
     *uclibc*)
@@ -709,3 +614,4 @@ case "$DEB_HOST_GNU_SYSTEM" in
         echo "Unknown OS";;
 esac
 
+install_cross_toolchain_pkg
