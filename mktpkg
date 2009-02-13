@@ -305,7 +305,7 @@ do_lld() {
 
 build_lld() {
 	pushd "$LLD_DIR"
-	dpkg-buildpackage -uc -us -a${DEB_HOST_ARCH} -d -b
+	dpkg-buildpackage -uc -us -a${DEB_HOST_ARCH} -b
 	_checkerr building linux-libc-dev
 	popd
 }
@@ -419,8 +419,7 @@ do_glibc_bs() {
 build_glibc_bs() {
 	pushd "$GLIBC_DIR"
 	( env DEB_CROSS_BOOTSTRAP=yes \
-		dpkg-buildpackage -uc -us -a${DEB_HOST_ARCH} \
-		-b -d )
+		dpkg-buildpackage -uc -us -a${DEB_HOST_ARCH} -b )
 	_checkerr building "bootstrap glibc"
 	popd
 }
@@ -444,8 +443,7 @@ do_glibc_bs2() {
 build_glibc_bs2() {
 	pushd "$GLIBC_DIR"
 	( env DEB_CROSS_BOOTSTRAP=second \
-		dpkg-buildpackage -uc -us -a${DEB_HOST_ARCH} \
-		-b -d )
+		dpkg-buildpackage -uc -us -a${DEB_HOST_ARCH} -b )
 	_checkerr building glibc
 	popd
 }
@@ -463,7 +461,7 @@ do_glibc() {
 
 build_glibc() {
 	pushd "$GLIBC_DIR"
-	( dpkg-buildpackage -uc -us -a${DEB_HOST_ARCH} -b -d )
+	( dpkg-buildpackage -uc -us -a${DEB_HOST_ARCH} -b )
 	_checkerr building glibc
 	popd
 }
@@ -494,7 +492,7 @@ build_gcc_bs() {
 	pushd "$GCC_DIR"
 	ARCH=${DEB_HOST_ARCH}
 	( _env; env GCC_TARGET=${ARCH} DEB_CROSS=yes DEB_CROSS_BOOTSTRAP=yes \
-		dpkg-buildpackage -uc -us -b -d )
+		dpkg-buildpackage -uc -us -b )
 	_checkerr building "bootstrap gcc"
 	popd
 }
@@ -526,7 +524,7 @@ build_gcc() {
 	pushd "$GCC_DIR"
 	ARCH=${DEB_HOST_ARCH}
 	( _env; env GCC_TARGET=${ARCH} DEB_CROSS=yes DEB_TARGET_LIBCXX=yes \
-		dpkg-buildpackage -uc -us -d )
+		dpkg-buildpackage -uc -us )
 	_checkerr building gcc
 	popd
 }
