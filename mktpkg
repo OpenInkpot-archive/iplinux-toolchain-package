@@ -576,26 +576,38 @@ install_cross_toolchain_pkg() {
 
     TPKG_VERSION=$(echo $TPKG_VERSION | sed -e 's,-,+,g')
 
-	mkdir -p $TPKG_PKGDIR/DEBIAN
-
-	cat > $TPKG_PKGDIR/DEBIAN/control <<EOF
-Package: $TPKG_PKGNAME
-Version: $TPKG_VERSION
-Section: host-tools
+    mkdir -p $TPKG_PKGDIR/debian/tmp/DEBIAN
+	cat > $TPKG_PKGDIR/debian/control <<EOF
+Source: toolchain-package
+Section: host/tools
 Priority: optional
-Architecture: $DEB_BUILD_ARCH
+Maintainer: $TPKG_MAINTAINER
+Standards-Version: 3.8.0
+
+Package: $TPKG_PKGNAME
+Architecture: any
 Depends: $DEPENDS
 Conflicts: $CONFLICTS
 Provides: $PROVIDES
-Source: toolchain-package
-Installed-size: 0
-Maintainer: $TPKG_MAINTAINER
 Description: cross-compilation toolchain for $DEB_HOST_ARCH
  This is a metapackage that will get you a complete toolchain
  for cross-compilation into $DEB_HOST_ARCH target.
 EOF
 
-	dpkg-deb -b $TPKG_PKGDIR
+    TPKG_DATE=$(date -R)
+
+    cat > $TPKG_PKGDIR/debian/changelog <<EOF
+toolchain-package ($TPKG_VERSION) asimov; urgency=low
+
+  * Fake changelog for fake package.
+
+ -- $TPKG_MAINTAINER  $TPKG_DATE
+EOF
+
+    (cd $TPKG_PKGDIR && dpkg-gencontrol)
+    dpkg-deb -b $TPKG_PKGDIR/debian/tmp $SRC_DIR/${TPKG_PKGNAME}.deb
+    (cd $TPKG_PKGDIR && dpkg-genchanges -b) > $SRC_DIR/${TPKG_PKGNAME}.changes
+
     $INSTALL_ROOTCMD dpkg -i $SRC_DIR/${TPKG_PKGNAME}.deb
 	dpkg-name -o $SRC_DIR/${TPKG_PKGNAME}.deb
 }
