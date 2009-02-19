@@ -3,43 +3,18 @@
 # Inkpump cross-toolchain builder, heavily based on SLIND cross-toolchain
 # builder.
 #
-# It is capable of operating in two modes:
-#
-#  1) building from git; this is default mode, and can be adjusted by passing
-#  --<pkg>-tag= options. In this mode mktpkg obtains sources by checking out
-#  source code from git, using passed tags and by looking at binary repository
-#  and finding out corresponding source for components which are not specified
-#  in command line.
-#
-#  2) building from provided source code. This is enabled by option
-#  --manual-mode and providing source code in target-dir, in directories named
-#  after components (binutils, linux-libc-dev, gcc-${VERSION}, glibc, uclibc).
-#
 
 TP_VERSION=0.3
 SUITE=asimov
-BDBT=/usr/share/bashdb/bashdb-trace
 
 usage() {
 	echo
-	echo "Usage: $0 [--force] [--manual-mode] [--suite=<suite>] <target-arch>"
+	echo "Usage: $0 [--force] [--suite=<suite>] <target-arch>"
 	echo
 	echo "<target-arch> must be a Debian architecture string."
     echo "<build-dir> must be a writable directory"
     echo "<suite> must be a OpenInkpot suite, defaults to $SUITE."
 }
-
-if [ -n "$DEBUG" ]; then
-    [ -f $BDBT ] || (echo "Please instal bashdb"; exit 1)
-    source $BDBT -q
-    _Dbg_set_trace ; : ; :
-fi
-
-if [ -n "$TRACE" ]; then
-    [ -f $BDBT ] || (echo "Please install bashdb"; exit 1)
-    source $BDBT -q
-    _Dbg_linetrace_on
-fi
 
 TEMP=$(getopt -o h --longoptions force,manual-mode,suite:,binutils-tag:,lld-tag:,gcc-tag:,glibc-tag:,uclibc-tag: -n $0 -- "$@")
 if [ $? != 0 ]; then
@@ -68,14 +43,6 @@ fi
 
 SRC_DIR=`pwd`
 
-# SIGINT handler; removes cruft
-# if $NO_CLEAN is set in the environment, this function does nothing
-cleanup() {
-	if [ -z "$NO_CLEAN" ]; then
-		rm -rf "$SRC_DIR"
-	fi
-}
-
 if [ -z "$TPKG_MAINTAINER" ]; then
 	TPKG_MAINTAINER="Mikhail Gusarov <dottedmag@dottedmag.net>"
 fi
@@ -95,8 +62,6 @@ GLIBC_DIR=$SRC_DIR/glibc
 GCC_DIR=$SRC_DIR/gcc-$GCC_VERSION
 
 [ -n "$INSTALL_ROOTCMD" ] || INSTALL_ROOTCMD=sudo
-
-#
 
 MYARCH=$(dpkg --print-architecture)
 
@@ -185,8 +150,6 @@ LIBSTDCXX_DEBPKG="libstdc++${GXX_SONAME}_${GCC_V}_${HOST_ARCH}.deb"
 
 LIBSTDCXX_DEV_CROSSNAME="libstdc++${GXX_SONAME}-${GCC_VERSION}-dev-${HOST_ARCH}-cross"
 LIBSTDCXX_DEV_DEBPKG="libstdc++${GXX_SONAME}-${GCC_VERSION}-dev_${GCC_V}_${HOST_ARCH}.deb"
-
-# -- --
 
 # banner
 echo "Building cross toolchain packages"
