@@ -5,18 +5,16 @@
 #
 
 TP_VERSION=0.3
-SUITE=asimov
 
 usage() {
 	echo
-	echo "Usage: $0 [--force] [--suite=<suite>] <target-arch>"
+	echo "Usage: $0 [--force] <target-arch>"
 	echo
 	echo "<target-arch> must be a Debian architecture string."
     echo "<build-dir> must be a writable directory"
-    echo "<suite> must be a OpenInkpot suite, defaults to $SUITE."
 }
 
-TEMP=$(getopt -o h --longoptions force,manual-mode,suite:,binutils-tag:,lld-tag:,gcc-tag:,glibc-tag:,uclibc-tag: -n $0 -- "$@")
+TEMP=$(getopt -o h --longoptions force: -n $0 -- "$@")
 if [ $? != 0 ]; then
     exit 1
 fi
@@ -26,10 +24,6 @@ while true; do
     case "$1" in
         --help) usage; exit;;
         --force) FORCED_ACTION=1; shift;;
-        --manual-mode) MANUAL_MODE=1; shift;;
-        # lld_TAG, binutils_TAG...
-        --*-tag) eval "${${1#--}%-tag}_TAG=$2"; shift 2;;
-        --suite) SUITE=$2; shift 2;;
         --) shift; break;;
         *) exit 1;;
     esac
@@ -77,11 +71,6 @@ if [ "x${HOST_GNU_TYPE}" = "x${BUILD_GNU_TYPE}" ] ; then
 	echo "Host system type same as target: ${HOST_GNU_TYPE}"
 	echo "This should never happen. Ure are probably using wrong dpkg."
 	exit 1
-fi
-
-
-if [ -z $MANUAL_MODE ]; then
-    echo "Get packages from Git"; exit 1;
 fi
 
 # get source package's version from its debian/changelog
