@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# Inkpump cross-toolchain builder, heavily based on SLIND cross-toolchain
+# IPlinux cross-toolchain builder, heavily based on SLIND cross-toolchain
 # builder.
 #
 
