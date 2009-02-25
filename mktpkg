@@ -214,7 +214,7 @@ do_clean() {
 # binutils #
 ############
 do_binutils() {
-    ( cd $BINUTILS_DIR ; env TARGET=$HOST_ARCH dpkg-buildpackage -us -uc -b )
+    ( cd $BINUTILS_DIR ; env TARGET=$HOST_ARCH dpkg-buildpackage -us -uc -b ) && \
     $INSTALL_ROOTCMD dpkg -i $BINUTILS_DEBPKG
 }
 
@@ -222,7 +222,7 @@ do_binutils() {
 # linux-libc-dev #
 ##################
 do_lld() {
-    ( cd $LLD_DIR ; dpkg-buildpackage -uc -us -a${HOST_ARCH} -b )
+    ( cd $LLD_DIR ; dpkg-buildpackage -uc -us -a${HOST_ARCH} -b ) && \
     _crossinst $LLD_DEBPKG
 }
 
@@ -231,17 +231,15 @@ do_lld() {
 #########
 do_bs1_glibc() {
     ( cd $GLIBC_DIR ; env DEB_CROSS_BOOTSTRAP=yes \
-        dpkg-buildpackage -uc -us -a${HOST_ARCH} -b )
-
+        dpkg-buildpackage -uc -us -a${HOST_ARCH} -b ) && \
     _crossinst $GLIBC_DEV_HEADERS_DEBPKG
 }
 
 
 do_bs2_glibc() {
     ( cd $GLIBC_DIR ; env DEB_CROSS_BOOTSTRAP=second \
-        dpkg-buildpackage -uc -us -a${HOST_ARCH} -b )
-
-    $INSTALL_ROOTCMD dpkg -P $GLIBC_DEV_HEADERS_CROSSPKGNAME
+        dpkg-buildpackage -uc -us -a${HOST_ARCH} -b ) && \
+    $INSTALL_ROOTCMD dpkg -P $GLIBC_DEV_HEADERS_CROSSPKGNAME && \
     _crossinst $GLIBC_DEBPKG $GLIBC_DEV_DEBPKG
 }
 
@@ -249,7 +247,7 @@ do_glibc() {
     # bs2 and final glibc packages have the same names.
     rm -f $GLIBC_DEBPKG $GLIBC_DEV_DEBPKG $GLIBC_DEBCROSS $GLIBC_DEV_DEBCROSS
 
-    ( cd $GLIBC_DIR ; dpkg-buildpackage -uc -us -a${HOST_ARCH} -b )
+    ( cd $GLIBC_DIR ; dpkg-buildpackage -uc -us -a${HOST_ARCH} -b ) && \
     _crossinst $GLIBC_DEBPKG $GLIBC_DEV_DEBPKG
 }
 
@@ -258,9 +256,8 @@ do_glibc() {
 #######
 do_bs1_gcc() {
     ( cd $GCC_DIR ; env GCC_TARGET=${HOST_ARCH} DEB_CROSS=yes DEB_CROSS_BOOTSTRAP=yes \
-        dpkg-buildpackage -uc -us -b )
-
-    _crossinst $LIBGCC_DEBPKG
+        dpkg-buildpackage -uc -us -b ) && \
+    _crossinst $LIBGCC_DEBPKG && \
     $INSTALL_ROOTCMD dpkg -i --force-depends $GCC_BASE_DEBPKG $GCC_DEBPKG $CPP_DEBPKG
 }
 
@@ -268,9 +265,8 @@ do_gcc() {
     $INSTALL_ROOTCMD dpkg -P $GCC_PKGNAME $GCC_BASE_PKGNAME $CPP_PKGNAME $LIBGCC_CROSSPKGNAME
 
     ( cd $GCC_DIR ; env GCC_TARGET=${HOST_ARCH} DEB_CROSS=yes DEB_TARGET_LIBCXX=yes \
-        dpkg-buildpackage -uc -us -d )
-
-    _crossinst $LIBGCC_DEBPKG $LIBSTDCXX_DEBPKG $LIBSTDCXX_DEV_DEBPKG
+        dpkg-buildpackage -uc -us -d ) && \
+    _crossinst $LIBGCC_DEBPKG $LIBSTDCXX_DEBPKG $LIBSTDCXX_DEV_DEBPKG && \
     $INSTALL_ROOTCMD dpkg -i $GCC_BASE_DEBPKG $GCC_DEBPKG $CPP_DEBPKG $GXX_DEBPKG
 }
 
