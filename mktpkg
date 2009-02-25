@@ -11,17 +11,14 @@ fi
 TP_VERSION=0.3
 TPKG_MAINTAINER="Mikhail Gusarov <dottedmag@dottedmag.net>"
 
-ACT_LIST="do_binutils do_lld do_bs1_glibc do_bs1_gcc do_bs2_glibc do_gcc do_glibc do_ct_pkg"
+ACT_LIST="clean do_binutils do_lld do_bs1_glibc do_bs1_gcc do_bs2_glibc do_gcc do_glibc do_ct_pkg"
 
 usage() {
     echo -e "Usage: $0 <target-arch> [action] ..."
     echo
     echo -e "\t<target-arch> must be a Debian architecture string."
     echo
-    echo -e "\t[action] - one or more of: $ACTIONS"
-    for i in $ACT_LIST ; do
-        echo -e "\t\t$i"
-    done
+    echo -e "\t[action] - one or more of: $ACT_LIST"
     echo
 }
 
@@ -100,13 +97,15 @@ _get_version() {
 BINUTILS_V=$(_get_version "$BINUTILS_DIR")
 BINUTILS_PKGNAME="binutils-${DEBPKG_HOST_GNU_TYPE}"
 BINUTILS_DEBPKG="${BINUTILS_PKGNAME}_${BINUTILS_V}_${BUILD_ARCH}.deb"
+BINUTILS_STUFF="binutils_${BINUTILS_V}_${BUILD_ARCH}.changes"
 
 LLD_V=$(_get_version "$LLD_DIR")
 LLD_CROSSPKGNAME="linux-libc-dev-${HOST_ARCH}-cross"
-LLD_DEBCROSS="{$LLD_CROSSPKGNAME}_${LLD_V}_all.deb"
+LLD_DEBCROSS="${LLD_CROSSPKGNAME}_${LLD_V}_all.deb"
 LLD_DEBPKG="linux-libc-dev_${LLD_V}_${HOST_ARCH}.deb"
+LLD_STUFF="linux-libc-dev_${LLD_V}_${HOST_ARCH}.changes"
 
-UCLIBC_V=$(_get_version "$UCLIBC_DIR")
+# UCLIBC_V=$(_get_version "$UCLIBC_DIR")
 GLIBC_V=$(_get_version "$GLIBC_DIR")
 
 # Stage 1
@@ -118,6 +117,7 @@ GLIBC_DEV_HEADERS_DEBPKG="libc6-dev-headers_${GLIBC_V}_${HOST_ARCH}.deb"
 GLIBC_CROSSPKGNAME="libc6-${HOST_ARCH}-cross"
 GLIBC_DEBCROSS="${GLIBC_CROSSPKGNAME}_${GLIBC_V}_all.deb"
 GLIBC_DEBPKG="libc6_${GLIBC_V}_${HOST_ARCH}.deb"
+GLIBC_STUFF="glibc_${GLIBC_V}_${HOST_ARCH}.changes"
 
 GLIBC_DEV_CROSSPKGNAME="libc6-dev-${HOST_ARCH}-cross"
 GLIBC_DEV_DEBCROSS="${GLIBC_DEV_CROSSPKGNAME}_${GLIBC_V}_all.deb"
@@ -134,6 +134,7 @@ esac
 
 GCC_PKGNAME="gcc-${GCC_VERSION}-${DEBPKG_HOST_GNU_TYPE}"
 GCC_DEBPKG="${GCC_PKGNAME}_${GCC_V}_${BUILD_ARCH}.deb"
+GCC_STUFF="gcc-${GCC_VERSION}_${GCC_V}.tar.gz gcc-${GCC_VERSION}_${GCC_V}.dsc"
 
 GCC_BASE_PKGNAME="gcc-${GCC_VERSION}-${DEBPKG_HOST_GNU_TYPE}-base"
 GCC_BASE_DEBPKG="${GCC_BASE_PKGNAME}_${GCC_V}_${BUILD_ARCH}.deb"
@@ -156,6 +157,8 @@ LIBSTDCXX_DEV_CROSSNAME="libstdc++${GXX_SONAME}-${GCC_VERSION}-dev-${HOST_ARCH}-
 LIBSTDCXX_DEV_DEBCROSS="${LIBSTDCXX_DEV_CROSSNAME}_${GCC_V}_all.deb"
 LIBSTDCXX_DEV_DEBPKG="libstdc++${GXX_SONAME}-${GCC_VERSION}-dev_${GCC_V}_${HOST_ARCH}.deb"
 
+TPKG_PKGNAME="${HOST_ARCH}-cross-toolchain"
+TPKG_STUFF="${TPKG_PKGNAME}.changes"
 # banner
 echo "Building cross toolchain packages"
 echo "---------------------------------"
@@ -173,94 +176,77 @@ _crossinst() {
     ( cd "$SRC_DIR"; $INSTALL_ROOTCMD dpkg-cross -A -a ${HOST_ARCH} -i "$@" )
 }
 
-# check if a package is installed
-# $@ -- binary package name
-_checkinst() {
-    if [ -n $FORCED_ACTION ]; then
-        exit
-    fi
-
-    _status=`dpkg -s "$1" 2>/dev/null | grep '^Status: ' | cut -d' ' -f4`
-    if [ "$?" != "0" -o "$_status" != "installed" ]; then
-        exit
-    fi
-
-    echo "installed"
-}
-
 # ------------------------------------------------------- #
 # tools                                                   #
 # ------------------------------------------------------- #
 # These functions are responsible for building of each component
 # in the toolchain. Names and code should be pretty straightforward.
 
+do_clean() {
+    PACKAGES=( $TPKG_PKGNAME $BINUTILS_PKGNAME $LLD_CROSSPKGNAME \
+                    $GLIBC_DEV_HEADERS_CROSSPKGNAME $GLIBC_CROSSPKGNAME \
+                    $GLIBC_DEV_CROSSPKGNAME $GCC_PKGNAME $GCC_BASE_PKGNAME \
+                    $CPP_PKGNAME $GXX_PKGNAME $LIBGCC_CROSSPKGNAME \
+                    $LIBSTDCXX_CROSSNAME $LIBSTDCXX_DEV_CROSSNAME )
+
+    DEBS=( $BINUTILS_DEBPKG $LLD_DEBPKG $LLD_DEBCROSS \
+            $GLIBC_DEV_HEADERS_DEBCROSS $GLIBC_DEV_HEADERS_DEBPKG \
+            $GLIBC_DEBCROSS $GLIBC_DEBPKG $GLIBC_DEV_DEBCROSS \
+            $GLIBC_DEV_DEBPKG $GCC_DEBPKG $GCC_BASE_DEBPKG $CPP_DEBPKG \
+            $GXX_DEBPKG $LIBGCC_DEBCROSS $LIBGCC_DEBPKG $LIBSTDCXX_DEBCROSS \
+            $LIBSTDCXX_DEBPKG $LIBSTDCXX_DEV_DEBCROSS $LIBSTDCXX_DEV_DEBPKG )
+
+    STUFF=( $BINUTILS_STUFF $LLD_STUFF $GLIBC_STUFF $GCC_STUFF $TPKG_STUFF )
+
+    echo "Uninstallig packages: ${PACKAGES[*]} ..."
+    $INSTALL_ROOTCMD dpkg -P ${PACKAGES[*]}
+
+    echo "Deleting packages: ${DEBS[*]}"
+    rm ${DEBS[*]}
+
+    echo "Deleting other files: ${STUFF[*]}"
+    rm ${STUFF[*]}
+    rm -r ./$TPKG_PKGNAME/
+
+}
+
 ############
 # binutils #
 ############
 do_binutils() {
-    if [ -z "`_checkinst $BINUTILS_PKGNAME`" ]; then
-        rm -f $BINUTILS_DEBPKG
-        ( cd $BINUTILS_DIR ; env TARGET=$HOST_ARCH dpkg-buildpackage -us -uc -b )
-        $INSTALL_ROOTCMD dpkg -i $BINUTILS_DEBPKG
-    else
-        echo "binutils ($BINUTILS_PKGNAME) appears to be installed, skipping"
-    fi
+    ( cd $BINUTILS_DIR ; env TARGET=$HOST_ARCH dpkg-buildpackage -us -uc -b )
+    $INSTALL_ROOTCMD dpkg -i $BINUTILS_DEBPKG
 }
 
 ##################
 # linux-libc-dev #
 ##################
 do_lld() {
-    if [ -z "`_checkinst $LLD_CROSSPKGNAME`" ]; then
-
-    rm -f $LLD_DEBPKG $LLD_DEBCROSS
     ( cd $LLD_DIR ; dpkg-buildpackage -uc -us -a${HOST_ARCH} -b )
     _crossinst $LLD_DEBPKG
-
-    else
-        echo "linux-libc-dev ($LLD_CROSSPKGNAME) appears to be installed, skipping"
-    fi
 }
 
 #########
 # glibc #
 #########
 do_bs1_glibc() {
-    if [ -z "`_checkinst $GLIBC_DEV_CROSSPKGNAME`" ]; then
-        if [ -z "`_checkinst $GLIBC_DEV_HEADERS_CROSSPKGNAME`"]; then
+    ( cd $GLIBC_DIR ; env DEB_CROSS_BOOTSTRAP=yes \
+        dpkg-buildpackage -uc -us -a${HOST_ARCH} -b )
 
-            rm -f $GLIBC_DEV_HEADERS_DEBPKG $GLIBC_DEV_HEADERS_DEBCROSS
-            ( cd $GLIBC_DIR ; env DEB_CROSS_BOOTSTRAP=yes \
-                dpkg-buildpackage -uc -us -a${HOST_ARCH} -b )
-
-            _crossinst $GLIBC_DEV_HEADERS_DEBPKG
-
-        else
-            echo "glibc ($GLIBC_DEV_CROSSPKGNAME) appears to be installed, skipping"
-        fi
-    else
-        echo "glibc ($GLIBC_DEV_HEADERS_CROSSPKGNAME) appears to be installed, skipping"
-    fi
+    _crossinst $GLIBC_DEV_HEADERS_DEBPKG
 }
 
 
 do_bs2_glibc() {
-    if [ -z "`_checkinst $GLIBC_DEV_CROSSPKGNAME`" ]; then
+    ( cd $GLIBC_DIR ; env DEB_CROSS_BOOTSTRAP=second \
+        dpkg-buildpackage -uc -us -a${HOST_ARCH} -b )
 
-        rm -f $GLIBC_DEBPKG $GLIBC_DEV_DEBPKG $GLIBC_DEBCROSS $GLIBC_DEV_DEBCROSS
-        ( cd $GLIBC_DIR ; env DEB_CROSS_BOOTSTRAP=second \
-            dpkg-buildpackage -uc -us -a${HOST_ARCH} -b )
-
-         $INSTALL_ROOTCMD dpkg -P $GLIBC_DEV_HEADERS_CROSSPKGNAME
-        _crossinst $GLIBC_DEBPKG $GLIBC_DEV_DEBPKG
-
-    else
-        echo "glibc ($GLIBC_DEV_CROSSPKGNAME) appears to be installed, skipping"
-    fi
+    $INSTALL_ROOTCMD dpkg -P $GLIBC_DEV_HEADERS_CROSSPKGNAME
+    _crossinst $GLIBC_DEBPKG $GLIBC_DEV_DEBPKG
 }
 
 do_glibc() {
-    # We perform this step unconditionally because the final and bs2 package names are the same
+    # bs2 and final glibc packages have the same names.
     rm -f $GLIBC_DEBPKG $GLIBC_DEV_DEBPKG $GLIBC_DEBCROSS $GLIBC_DEV_DEBCROSS
 
     ( cd $GLIBC_DIR ; dpkg-buildpackage -uc -us -a${HOST_ARCH} -b )
@@ -271,36 +257,21 @@ do_glibc() {
 # gcc #
 #######
 do_bs1_gcc() {
-    if [ -z "`_checkinst $GCC_PKGNAME`" ]; then
+    ( cd $GCC_DIR ; env GCC_TARGET=${HOST_ARCH} DEB_CROSS=yes DEB_CROSS_BOOTSTRAP=yes \
+        dpkg-buildpackage -uc -us -b )
 
-        rm -f $GCC_DEBPKG $GCC_BASE_DEBPKG $CPP_DEBPKG $LIBGCC_DEBCROSS
-        ( cd $GCC_DIR ; env GCC_TARGET=${HOST_ARCH} DEB_CROSS=yes DEB_CROSS_BOOTSTRAP=yes \
-            dpkg-buildpackage -uc -us -b )
-
-        _crossinst $LIBGCC_DEBPKG
-        $INSTALL_ROOTCMD dpkg -i --force-depends $GCC_BASE_DEBPKG $GCC_DEBPKG $CPP_DEBPKG
-
-    else
-        echo "base compiler ($GCC_PKGNAME) appears to be installed, skipping"
-    fi
+    _crossinst $LIBGCC_DEBPKG
+    $INSTALL_ROOTCMD dpkg -i --force-depends $GCC_BASE_DEBPKG $GCC_DEBPKG $CPP_DEBPKG
 }
 
 do_gcc() {
-    if [ -z "`_checkinst $LIBSTDCXX_DEV_CROSSNAME`" ]; then
+    $INSTALL_ROOTCMD dpkg -P $GCC_PKGNAME $GCC_BASE_PKGNAME $CPP_PKGNAME $LIBGCC_CROSSPKGNAME
 
-        rm -f $GCC_DEBPKG $CPP_DEBPKG $GXX_DEBPKG $LIBGCC_DEBPKG $LIBGCC_DEBCROSS $LIBSTDCXX_DEBPKG $LIBSTDCXX_DEV_DEBPKG $LIBSTDCXX_DEBCROSS $LIBSTDCXX_DEV_DEBCROSS
-        $INSTALL_ROOTCMD dpkg -P $GCC_PKGNAME $GCC_BASE_PKGNAME $CPP_PKGNAME \
-             $GXX_PKGNAME $LIBGCC_CROSSPKGNAME $LIBSTDCXX_CROSSNAME $LIBSTDCXX_DEV_CROSSNAME
+    ( cd $GCC_DIR ; env GCC_TARGET=${ARCH} DEB_CROSS=yes DEB_TARGET_LIBCXX=yes \
+        dpkg-buildpackage -uc -us -d )
 
-        ( cd $GCC_DIR ; env GCC_TARGET=${ARCH} DEB_CROSS=yes DEB_TARGET_LIBCXX=yes \
-            dpkg-buildpackage -uc -us -d )
-
-        _crossinst $LIBGCC_DEBPKG $LIBSTDCXX_DEBPKG $LIBSTDCXX_DEV_DEBPKG
-        $INSTALL_ROOTCMD dpkg -i $GCC_BASE_DEBPKG $GCC_DEBPKG $CPP_DEBPKG $GXX_DEBPKG
-
-    else
-        echo "compiler ($LIBSTDCXX_DEV_CROSSNAME) appears to be installed, skipping"
-    fi
+    _crossinst $LIBGCC_DEBPKG $LIBSTDCXX_DEBPKG $LIBSTDCXX_DEV_DEBPKG
+    $INSTALL_ROOTCMD dpkg -i $GCC_BASE_DEBPKG $GCC_DEBPKG $CPP_DEBPKG $GXX_DEBPKG
 }
 
 # -- toolchain metapackage --
@@ -329,7 +300,6 @@ do_ct_pkg() {
 
     DEPENDS="$BINUTILS_PKGDEP, $LLD_PKGDEP, $GCC_PKGDEP, $LIBC_PKGDEP"
 
-    TPKG_PKGNAME="${HOST_ARCH}-cross-toolchain"
     TPKG_PKGDIR=$SRC_DIR/$TPKG_PKGNAME
 
     TPKG_VERSION="${TP_VERSION}+binutils${BINUTILS_V}+linux-libc-dev${LLD_V}+gcc${GCC_V}"
