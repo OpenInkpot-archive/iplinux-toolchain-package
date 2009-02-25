@@ -89,7 +89,7 @@ fi
 # $1 -- path to unpacked sources
 _get_version() {
     local _dir="$1"
-    cd "$_dir"; dpkg-parsechangelog|awk '/Version:/ {print $2}'
+    cd "$_dir"; dpkg-parsechangelog 2>/dev/null |awk '/Version:/ {print $2}'
 }
 
 # -- Package names & versions --
