@@ -352,7 +352,11 @@ EOF
 
 run_action () {
     echo "Running '$1'..."
-    ( $1 ) 2>&1 | tee $LOG_BASE-$1.log
+    if [ -z "$DEBUG" ] ; then
+        ( $1 ) > $LOG_BASE-$1.log 2>&1
+    else
+        ( $1 ) 2>&1 | tee $LOG_BASE-$1.log
+    fi
     if [ $? -ne 0 ] ; then
         echo "Action '$1' failed, see logs in '$LOG_BASE-$1.log'"
     fi
