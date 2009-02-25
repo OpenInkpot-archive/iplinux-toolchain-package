@@ -11,7 +11,7 @@ fi
 TP_VERSION=0.3
 TPKG_MAINTAINER="Mikhail Gusarov <dottedmag@dottedmag.net>"
 
-ACT_LIST="clean do_binutils do_lld do_bs1_glibc do_bs1_gcc do_bs2_glibc do_gcc do_glibc do_ct_pkg"
+ACT_LIST="do_clean do_binutils do_lld do_bs1_glibc do_bs1_gcc do_bs2_glibc do_gcc do_glibc do_ct_pkg"
 
 usage() {
     echo -e "Usage: $0 <target-arch> [action] ..."
@@ -75,7 +75,7 @@ else
             echo "uclibc is not supported yet."
             ;;
         *gnu*)
-            ACTIONS="do_binutils do_lld do_bs1_glibc do_bs1_gcc do_bs2_glibc do_gcc do_glibc do_ct_pkg"
+            ACTIONS="do_clean do_binutils do_lld do_bs1_glibc do_bs1_gcc do_bs2_glibc do_gcc do_glibc do_ct_pkg"
             ;;
         *)
             echo "Unknown libc requested: $HOST_GNU_SYSTEM"
