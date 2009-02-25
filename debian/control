@@ -7,7 +7,7 @@ Standards-Version: 3.8.0
 
 Package: toolchain-package
 Architecture: all
-Depends: dpkg-cross (>= 2.3), dpkg-dev, fakeroot
+Depends: dpkg-cross (>= 2.3), dpkg-dev, fakeroot, bash
 Description: Cross-compilation toolchain builder
  This package contains a tool that builds cross-compilation
  toolchains for several architectures (those supported in Inkpump).
