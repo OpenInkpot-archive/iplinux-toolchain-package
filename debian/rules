@@ -5,6 +5,8 @@ clean:
 	dh_prep
 	rm -f *-stamp
 
+	dh_clean
+
 build:
 
 install: build
