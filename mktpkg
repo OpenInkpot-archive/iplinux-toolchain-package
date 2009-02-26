@@ -265,7 +265,7 @@ do_gcc() {
     $INSTALL_ROOTCMD dpkg -P $GCC_PKGNAME $GCC_BASE_PKGNAME $CPP_PKGNAME $LIBGCC_CROSSPKGNAME
 
     ( cd $GCC_DIR ; env GCC_TARGET=${HOST_ARCH} DEB_CROSS=yes DEB_TARGET_LIBCXX=yes \
-        dpkg-buildpackage -uc -us -d -b ) && \
+        dpkg-buildpackage -uc -us -b ) && \
     _crossinst $LIBGCC_DEBPKG $LIBSTDCXX_DEBPKG $LIBSTDCXX_DEV_DEBPKG && \
     $INSTALL_ROOTCMD dpkg -i $GCC_BASE_DEBPKG $GCC_DEBPKG $CPP_DEBPKG $GXX_DEBPKG
 }
