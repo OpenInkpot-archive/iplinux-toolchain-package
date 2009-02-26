@@ -6,8 +6,12 @@ toolchain-package (0.3) asimov; urgency=low
   [Oleg Leschinsky]
   * Added support for uclibc-armel architecture.
   * Updated for debian/sid.
+  
+  [Alexey Zaitsev]
+  * Compilation logs are moved to the separate files.
+  * "cleanup" task
 
- -- Mikhail Gusarov <dottedmag@dottedmag.net>  Sun, 28 Dec 2008 03:27:43 +0600
+ -- Mikhail Gusarov <dottedmag@dottedmag.net>  Thu, 26 Feb 2009 14:53:56 +0600
 
 toolchain-package (0.2) unstable; urgency=low
 
