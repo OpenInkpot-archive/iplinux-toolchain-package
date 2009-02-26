@@ -1,3 +1,9 @@
+toolchain-package (0.4) asimov; urgency=low
+
+  * [Snapshot]
+
+ -- Mikhail Gusarov <dottedmag@dottedmag.net>  Thu, 26 Feb 2009 14:58:05 +0600
+
 toolchain-package (0.3) asimov; urgency=low
 
   [Mikhail Gusarov]

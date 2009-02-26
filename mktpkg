@@ -8,7 +8,7 @@ if [ -n "$DEBUG" ]; then
     set -x
 fi
 
-TP_VERSION=0.3
+TP_VERSION=0.4
 TPKG_MAINTAINER="Mikhail Gusarov <dottedmag@dottedmag.net>"
 
 ACT_LIST="do_clean do_binutils do_lld do_bs1_glibc do_bs1_gcc do_bs2_glibc do_gcc do_glibc do_ct_pkg"
