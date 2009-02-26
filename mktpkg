@@ -355,6 +355,7 @@ run_action () {
     fi
     if [ $? -ne 0 ] ; then
         echo "Action '$1' failed, see logs in '$LOG_BASE-$1.log'"
+	exit 1
     fi
 }
 
