@@ -208,6 +208,7 @@ do_clean() {
     rm ${STUFF[*]}
     rm -r ./$TPKG_PKGNAME/
 
+    true
 }
 
 ############
