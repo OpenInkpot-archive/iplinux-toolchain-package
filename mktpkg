@@ -257,8 +257,7 @@ do_glibc() {
 do_bs1_gcc() {
     ( cd $GCC_DIR ; env GCC_TARGET=${HOST_ARCH} DEB_CROSS=yes DEB_CROSS_BOOTSTRAP=yes \
         dpkg-buildpackage -uc -us -b ) && \
-    _crossinst $LIBGCC_DEBPKG && \
-    $INSTALL_ROOTCMD dpkg -i --force-depends $GCC_BASE_DEBPKG $GCC_DEBPKG $CPP_DEBPKG
+    $INSTALL_ROOTCMD dpkg -i --force-depends $LIBGCC_DEBCROSS $GCC_BASE_DEBPKG $GCC_DEBPKG $CPP_DEBPKG
 }
 
 do_gcc() {
@@ -266,8 +265,8 @@ do_gcc() {
 
     ( cd $GCC_DIR ; env GCC_TARGET=${HOST_ARCH} DEB_CROSS=yes DEB_TARGET_LIBCXX=yes \
         dpkg-buildpackage -uc -us -b ) && \
-    _crossinst $LIBGCC_DEBPKG $LIBSTDCXX_DEBPKG $LIBSTDCXX_DEV_DEBPKG && \
-    $INSTALL_ROOTCMD dpkg -i $GCC_BASE_DEBPKG $GCC_DEBPKG $CPP_DEBPKG $GXX_DEBPKG
+    $INSTALL_ROOTCMD dpkg -i $LIBGCC_DEBCROSS $LIBSTDCXX_DEBCROSS \
+        $LIBSTDCXX_DEV_DEBCROSS $GCC_BASE_DEBPKG $GCC_DEBPKG $CPP_DEBPKG $GXX_DEBPKG
 }
 
 # -- toolchain metapackage --
