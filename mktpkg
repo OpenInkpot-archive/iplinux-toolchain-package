@@ -337,12 +337,11 @@ toolchain-package ($TPKG_VERSION) asimov; urgency=low
  -- $TPKG_MAINTAINER  $TPKG_DATE
 EOF
 
-    (cd $TPKG_PKGDIR && dpkg-gencontrol)
-    dpkg-deb -b $TPKG_PKGDIR/debian/tmp $SRC_DIR/${TPKG_PKGNAME}.deb
+    (cd $TPKG_PKGDIR && dpkg-gencontrol) && \
+    dpkg-deb -b $TPKG_PKGDIR/debian/tmp $SRC_DIR/${TPKG_PKGNAME}.deb && \
+    $INSTALL_ROOTCMD dpkg -i $SRC_DIR/${TPKG_PKGNAME}.deb && \
+    dpkg-name -o $SRC_DIR/${TPKG_PKGNAME}.deb && \
     (cd $TPKG_PKGDIR && dpkg-genchanges -b) > $SRC_DIR/${TPKG_PKGNAME}.changes
-
-    $INSTALL_ROOTCMD dpkg -i $SRC_DIR/${TPKG_PKGNAME}.deb
-    dpkg-name -o $SRC_DIR/${TPKG_PKGNAME}.deb
 }
 
 run_action () {
