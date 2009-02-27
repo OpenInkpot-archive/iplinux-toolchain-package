@@ -1,6 +1,8 @@
 toolchain-package (0.4) asimov; urgency=low
 
   * Added missing -b option to gcc build.
+  * Fixed generation of $arch-cross-toolchain.changes
+  * gcc compilation now emits already crossed libraries
 
  -- Mikhail Gusarov <dottedmag@dottedmag.net>  Thu, 26 Feb 2009 14:58:05 +0600
 
