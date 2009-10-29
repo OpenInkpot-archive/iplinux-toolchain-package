@@ -1,13 +1,13 @@
 Source: toolchain-package
 Section: host/tools
 Priority: optional
-Maintainer: Alexander Shishkin <virtuoso@slind.org>
-Build-Depends: debhelper (>= 4)
-Standards-Version: 3.8.0
+Maintainer: Mikhail Gusarov <dottedmag@dottedmag.net>
+Build-Depends: debhelper (>= 7)
+Standards-Version: 3.8.3
 
-Package: toolchain-package
+Package: __TARGET__-cross-toolchain
 Architecture: all
-Depends: dpkg-cross (>= 2.3), dpkg-dev, fakeroot, bash
+Depends: binutils-__GNUTARGET__, linux-libc-dev-__TARGET__-cross, gcc-__GCCVERSION__-__GNUTARGET__, gcc-__GCCVERSION__-__GNUTARGET__-base, cpp-__GCCVERSION__-__GNUTARGET__, g++-__GCCVERSION__-__GNUTARGET__, libgcc1-__TARGET__-cross, libstdc++6-__TARGET__-cross, libc6-__TARGET__-cross, libc6-dev-__TARGET__-cross
 Description: Cross-compilation toolchain builder
  This package contains a tool that builds cross-compilation
  toolchains for several architectures (those supported in Inkpump).
