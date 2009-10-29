@@ -1,3 +1,10 @@
+toolchain-package (0.5) asimov; urgency=low
+
+  * Stop installing mktpkg until it is working again.
+  * Make $arch-toolchain-package arch-indep packages.
+
+ -- Mikhail Gusarov <dottedmag@dottedmag.net>  Fri, 30 Oct 2009 05:29:01 +0600
+
 toolchain-package (0.4) asimov; urgency=low
 
   * Added missing -b option to gcc build.
