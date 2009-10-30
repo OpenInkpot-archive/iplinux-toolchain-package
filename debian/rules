@@ -4,7 +4,7 @@ ifeq (,$(TARGET))
   $(error Empty TARGET variable)
 endif
 
-GNUTARGET := $(shell env -i dpkg-architecture -a$(TARGET) -qDEB_HOST_GNU_TYPE 2>/dev/null)
+GNUTARGET := $(shell env -i dpkg-architecture -a$(TARGET) -qDEB_HOST_GNU_TYPE 2>/dev/null | sed -e 's/_/-/g')
 GCCVERSION := 4.3
 
 clean:
