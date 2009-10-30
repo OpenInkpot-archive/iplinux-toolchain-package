@@ -11,16 +11,15 @@ clean:
 	dh_testdir
 	dh_prep
 
-	sed -e "s/$(GNUTARGET)/__GNUTARGET__/g" \
-		-e "s/$(TARGET)/__TARGET__/g" \
-	    -e "s/$(GCCVERSION)/__GCCVERSION__/g" \
-		-i debian/control
+	[ ! -e debian/control.orig ] || mv -f debian/control.orig debian/control
 
 	dh_clean
 
 build: build-stamp
 build-stamp:
 	dh_testdir
+
+	[ -e debian/control.orig ] || cp debian/control debian/control.orig
 	sed -e "s/__GNUTARGET__/$(GNUTARGET)/g" \
 		-e "s/__TARGET__/$(TARGET)/g" \
 		-e "s/__GCCVERSION__/$(GCCVERSION)/g" \
