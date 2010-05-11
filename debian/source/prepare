@@ -1,0 +1,23 @@
+#!/bin/sh
+
+if [ $# -ne 2 ]; then
+    echo "Usage: debian/source/prepare <arch> <gcc_version>"
+    exit 1
+fi
+
+TARGET=$1
+GCC_VERSION=$2
+GNU_TARGET=$(dpkg-architecture -a${TARGET} -qDEB_HOST_GNU_TYPE | sed -e 's/_/-/g')
+
+if [ -z $GNU_TARGET ]; then
+    echo "Target architecture ($TARGET) does not have associated GNU target"
+    exit 1
+fi
+
+rm -f debian/control
+
+sed -e "s/__GCC_VERSION__/${GCC_VERSION}/g" \
+    -e "s/__TARGET__/${TARGET}/g" \
+    -e "s/__GNU_TARGET__/${GNU_TARGET}/g" \
+    < debian/control.in > debian/control
+

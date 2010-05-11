@@ -1,3 +1,10 @@
+toolchain-package (0.6) UNRELEASED; urgency=low
+
+  * Remove mktpkg, it's a separate tool now.
+  * Use source/prepare to generate the control file.
+
+ -- Alexey Zaytsev <alexey.zaytsev@gmail.com>  Tue, 11 May 2010 16:09:27 +0400
+
 toolchain-package (0.5) asimov; urgency=low
 
   * Stop installing mktpkg until it is working again.

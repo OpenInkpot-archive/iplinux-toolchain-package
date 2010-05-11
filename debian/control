@@ -5,9 +5,8 @@ Maintainer: Mikhail Gusarov <dottedmag@dottedmag.net>
 Build-Depends: debhelper (>= 7)
 Standards-Version: 3.8.3
 
-Package: __TARGET__-cross-toolchain
+Package: armel-cross-toolchain
 Architecture: all
-Depends: binutils-__GNUTARGET__, linux-libc-dev-__TARGET__-cross, gcc-__GCCVERSION__-__GNUTARGET__, gcc-__GCCVERSION__-__GNUTARGET__-base, cpp-__GCCVERSION__-__GNUTARGET__, g++-__GCCVERSION__-__GNUTARGET__, libgcc1-__TARGET__-cross, libstdc++6-__TARGET__-cross, libc6-__TARGET__-cross, libc6-dev-__TARGET__-cross
-Description: Cross-compilation toolchain builder
- This package contains a tool that builds cross-compilation
- toolchains for several architectures (those supported in Inkpump).
+Depends: binutils-arm-ip-linux-gnueabi, linux-libc-dev-armel-cross, gcc-4.3-arm-ip-linux-gnueabi, gcc-4.3-arm-ip-linux-gnueabi-base, cpp-4.3-arm-ip-linux-gnueabi, g++-4.3-arm-ip-linux-gnueabi, libgcc1-armel-cross, libstdc++6-armel-cross, libc6-armel-cross, libc6-dev-armel-cross
+Description: Cross-compilation toolchain dummy package
+  This package provides this and that.
