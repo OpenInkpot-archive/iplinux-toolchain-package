@@ -7,6 +7,6 @@ Standards-Version: 3.8.3
 
 Package: __TARGET__-cross-toolchain
 Architecture: all
-Depends: binutils-__GNU_TARGET__, linux-libc-dev-__TARGET__-cross, gcc-__GCC_VERSION__-__GNU_TARGET__, gcc-__GCC_VERSION__-__GNU_TARGET__-base, cpp-__GCC_VERSION__-__GNU_TARGET__, g++-__GCC_VERSION__-__GNU_TARGET__, libgcc1-__TARGET__-cross, libstdc++6-__TARGET__-cross, libc6-__TARGET__-cross, libc6-dev-__TARGET__-cross
+Depends: binutils-__GNU_TARGET__, linux-libc-dev-__TARGET__-cross, gcc-__GCC_VERSION__-__GNU_TARGET__, gcc-__GCC_VERSION__-__GNU_TARGET__-base, cpp-__GCC_VERSION__-__GNU_TARGET__, g++-__GCC_VERSION__-__GNU_TARGET__, libgcc1-__TARGET__-cross, libstdc++6-__TARGET__-cross, __LIBC__-__TARGET__-cross, __LIBC__-dev-__TARGET__-cross
 Description: Cross-compilation toolchain dummy package
   This package provides this and that.

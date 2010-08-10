@@ -14,10 +14,17 @@ if [ -z $GNU_TARGET ]; then
     exit 1
 fi
 
+if [ "$TARGET" = "${TARGET#uc}" ]; then
+    LIBC="libc6"
+else
+    LIBC="libuclibc0"
+fi
+
 rm -f debian/control
 
 sed -e "s/__GCC_VERSION__/${GCC_VERSION}/g" \
     -e "s/__TARGET__/${TARGET}/g" \
     -e "s/__GNU_TARGET__/${GNU_TARGET}/g" \
+    -e "s/__LIBC__/${LIBC}/g" \
     < debian/control.in > debian/control
 
